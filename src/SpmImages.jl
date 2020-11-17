@@ -280,15 +280,15 @@ Returns:
 """
 function plot_data(data::Array{<:Number,2}; title::String="", x_label::String="", y_label::String="", scansize::Vector{<:Number}=Vector{Float64}(undef, 0), args...)
     if length(scansize) == 2  # physical units
-        xs = range(0, scansize[1], length=size(data)[1])
-        ys = range(0, scansize[2], length=size(data)[2])
+        xs = range(0, scansize[1], length=size(data)[2])
+        ys = range(0, scansize[2], length=size(data)[1])
         xlim = (0, scansize[1])
         ylim = (0, scansize[2])
         p = heatmap(xs, ys, data, aspect_ratio=1, color=:grays; args...)
     else  # pixel units
         p = heatmap(data, aspect_ratio=1, color=:grays; args...)
-        xlim = (0, size(data)[1])
-        ylim = (0, size(data)[2])
+        xlim = (0, size(data)[2])
+        ylim = (0, size(data)[1])
     end
     title!(p, title)
     xlabel!(p, x_label)
