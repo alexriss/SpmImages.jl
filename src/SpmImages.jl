@@ -3,7 +3,7 @@ module SpmImages
 using Dates
 using Plots
 
-export load_image, get_channel, plot_channel, plot_data
+export SpmImage, load_image, get_channel, plot_channel, plot_data
 
 @enum ScanDirection up down
 @enum Direction bwd fwd
@@ -20,11 +20,13 @@ mutable struct SpmImage
     scansize_unit::String
     pixelsize::Vector{Int64}
     scan_direction::ScanDirection
+
+    z_feedback::Bool
     
     start_time::DateTime
     acquisition_time::Float64
 end
-SpmImage(filename::String) = SpmImage(filename, Dict(), [], [], [], [], "", [], up, Dates.now(), 0)
+SpmImage(filename::String) = SpmImage(filename, Dict(), [], [], [], [], "", [], up, false, Dates.now(), 0)
 
 mutable struct Channel
     name::String
@@ -162,6 +164,8 @@ function _load_image_nanonis!(image::SpmImage, output_info::Int64=1, header_only
         image.pixelsize = map(x -> parse(Int64, x), split(image.header["scan_pixels"]))
         image.scan_direction = image.header["scan_dir"] == "up" ? up : down
 
+        image.z_feedback = image.header["z-controller>controller_status"] == "ON" ? true : false
+
         image.start_time = DateTime(image.header["rec_date"] * " " * image.header["rec_time"], dateformat"d.m.Y H:M:S")
         image.acquisition_time = parse(Float64, image.header["acq_time"])
         
@@ -200,10 +204,10 @@ function get_channel(image::SpmImage, channel_name::String; origin::String="lowe
     if channel_name in image.channel_names
         i_channel = findfirst(x -> x == channel_name, image.channel_names)
     elseif endswith(channel_name, "_bwd") && channel_name[1:end-4] in image.channel_names
-        i_channel = findfirst(x -> x == channel_name, image.channel_names)
+        i_channel = findfirst(x -> x == channel_name[1:end-4], image.channel_names)
         backward = true
     elseif endswith(channel_name, "_fwd") && channel_name[1:end-4] in image.channel_names
-        i_channel = findfirst(x -> x == channel_name, image.channel_names)
+        i_channel = findfirst(x -> x == channel_name[1:end-4], image.channel_names)
     else  # try lower case, as well as forward and backward suffixes
         channel_name_ = lowercase(channel_name)
         channel_names = lowercase.(image.channel_names)
