@@ -266,6 +266,7 @@ Returns:
     data (2D array): background corrected data
 """
 function correct_background(data::Array{<:Number,2}, type::Background)::Array{<:Number,2}
+    data = copy(data)
     if type == plane_linear_fit  # subtract plane
         # see: https://math.stackexchange.com/a/2306029
         ci = vec(CartesianIndices(data))
