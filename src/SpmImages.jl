@@ -5,11 +5,17 @@ module SpmImages
 using DataStructures:OrderedDict
 using Dates
 using Plots
+using Statistics
 
-export SpmImage, load_image, get_channel, plot_channel, plot_data
+export SpmImage, load_image, get_channel, plot_channel, plot_data, correct_background
+export Background
+export no_correction, plane_linear_fit, line_average, vline_average, line_linear_fit, vline_linear_fit
+
 
 @enum ScanDirection up down
 @enum Direction bwd fwd
+@enum Background no_correction plane_linear_fit line_average vline_average line_linear_fit vline_linear_fit line_linear_fit_legacy vline_linear_fit_legacy
+
 
 mutable struct SpmImage
     filename::String
@@ -49,7 +55,7 @@ Args:
 Raises:
     Error: If the file extension is not known.
 """
-function load_image(fname::String; output_info::Int64=1, header_only::Bool=false)
+function load_image(fname::String; output_info::Int64=1, header_only::Bool=false)::SpmImage
     if !isfile(fname)
         error("Cannot find file $fname")
         return nothing
@@ -74,7 +80,7 @@ Args:
 Returns:
     str: Simplified output string.
 """
-function string_simplify(str::String)
+function string_simplify(str::String)::String
     return lowercase(replace(str,' ' => '_'))
 end
 
@@ -87,7 +93,7 @@ Args:
 Returns:
     str: Prettified output string.
 """
-function string_prettify(str::String)
+function string_prettify(str::String)::String
     if uppercase(str) == str
         str = uppercasefirst(lowercase(str))
     end
@@ -102,11 +108,11 @@ Args:
 Returns:
     names, units: a tuple of arrays of strings specifying the channel names and their respective units; or empty tuple if information cant be extracted
 """
-function _get_channel_names_units(image::SpmImage)
+function _get_channel_names_units(image::SpmImage)::Tuple{Vector{String},Vector{String}}
     lines = split(image.header["Data info"], "\n")
     popfirst!(lines) # first row are the headers: Channel Name Unit Direction Calibration Offset
-    names = []
-    units = []
+    names = Vector{String}(undef, 0)
+    units = Vector{String}(undef, 0)
     for line in lines
         entries = split(line)
         if length(entries) > 1
@@ -205,7 +211,7 @@ Args:
 Returns:
     Channel: struct containing the channel name, unit and 2D data corresponding to channel_name.
 """
-function get_channel(image::SpmImage, channel_name::String; origin::String="lower")
+function get_channel(image::SpmImage, channel_name::String; origin::String="lower")::Channel
     backward = false
     if channel_name in image.channel_names
         i_channel = findfirst(x -> x == channel_name, image.channel_names)
@@ -252,27 +258,107 @@ function get_channel(image::SpmImage, channel_name::String; origin::String="lowe
 end
 
 
+"""Background correction for a 2D data array
+Args:
+    data (2D array): Channel data
+    type (Background): type of background correction, i.e. plane_linear_fit, line_average, vline_average, line_linear_fit, vline_linear_fit,
+Returns:
+    data (2D array): background corrected data
+"""
+function correct_background(data::Array{<:Number,2}, type::Background)::Array{<:Number,2}
+    if type == plane_linear_fit  # subtract plane
+        # see: https://math.stackexchange.com/a/2306029
+        ci = vec(CartesianIndices(data))
+        ci1 = [c[1] for c in ci]
+        ci2 = [c[2] for c in ci]
+        X = [ones(length(ci)) ci1 ci2]
+        y = vec(data)
+
+        not_nan = findall(!isnan, y)  # we need to skip the NaN values, otherwise we get NaN results (using "missing" didn't help either)
+        @views p = X[not_nan,:] \ y[not_nan]
+
+        data -= reshape(X * p, size(data))
+    elseif type == line_average  # subtract line by line average
+        data = data .- mean(data, dims=2)
+    elseif type == vline_average  # subtract line by line average for vertical lines (i.e. slow scan direction)
+        # we want to account for NaNs here
+        # return data .- mean(data, dims=1)
+        for y in eachcol(data)
+            not_nan = findall(!isnan, y)
+            if length(not_nan) > 0
+                @views y .-= mean(y[not_nan])
+            end
+        end
+    elseif type == line_linear_fit_legacy
+        # efficient linear fit: https://discourse.julialang.org/t/efficient-way-of-doing-linear-regression/31232/26
+        x = 1:size(data)[2]
+        for y in eachrow(data)
+            X = [ones(size(x)) x]
+
+            α, β = X \ y
+            y .= y .- α - x .* β
+        end
+    elseif type == vline_linear_fit_legacy
+        # as line_linear_fit_, but for columns (and here we have to account for NaN values)
+        x = 1:size(data)[1]
+        for y in eachcol(data)
+            X = [ones(size(x)) x]
+
+            not_nan = findall(!isnan, y)
+            if length(not_nan) > 0
+                @views α, β = X[not_nan,:] \ y[not_nan]
+                y .= y .- α - x .* β
+            end
+        end
+    elseif type == line_linear_fit
+        # https://en.wikipedia.org/wiki/Ordinary_least_squares#Simple_linear_regression_model
+        # this seems to be faster than the method above
+        x = 1:size(data)[2]
+        varx = var(x)  # same for each row
+        meanx = mean(x)
+        for y in eachrow(data)
+            β = cov(x, y) / varx
+            α = mean(y) - β * meanx
+            y .= y .- α - x .* β
+        end
+    elseif type == vline_linear_fit
+        # as line_linear_fit, but for columns (and here we have to account for NaN values)
+        x = 1:size(data)[1]
+        for y in eachcol(data)
+            not_nan = findall(!isnan, y)
+            if length(not_nan) > 0
+                @views β = cov(x[not_nan], y[not_nan]) / var(x[not_nan])
+                @views α = mean(y[not_nan]) - β * mean(x[not_nan])
+                y .= y .- α - x .* β
+            end
+        end
+    end
+    return data
+end
+
+
 """Plots the channel image
 Args:
     image (SpmImage): SpmImage object
     channel_name (str): string specifying the channel name to return, backward channels are generated by a suffix " bwd"
+    background (Background): type of background correction
     pixel_units (bool): specifies whether to use pixel units (otherwise physical units are used)
     args: extra keyword arguments that will be passed on to plot_data (and there to heatmap)
 Returns:
     plot of channel
 """
-function plot_channel(image::SpmImage, channel_name::String; pixel_units::Bool=false, args...)
+function plot_channel(image::SpmImage, channel_name::String; background::Background=no_correction, pixel_units::Bool=false, args...) :: Plots.Plot
     channel = get_channel(image, channel_name)
     title = string_prettify(channel_name) * " [$(channel.unit)]"
 
     if pixel_units
         x_label = "px"
         y_label = "px"
-        return plot_data(channel.data, title=title, x_label=x_label, y_label=y_label; args...)
+        return plot_data(channel.data, background=background, title=title, x_label=x_label, y_label=y_label; args...)
     else
         x_label = image.scansize_unit
         y_label = image.scansize_unit
-        return plot_data(channel.data, title=title, x_label=x_label, y_label=y_label, scansize=image.scansize; args...)
+        return plot_data(channel.data, background=background, title=title, x_label=x_label, y_label=y_label, scansize=image.scansize; args...)
     end
 end
 
@@ -280,6 +366,7 @@ end
 """Plots 2D data
 Args:
     data (array): 2d data rray to be plotted
+    background (Background): type of background correction
     title (str): string specifying the image title
     x_label (str): x label
     y_label (str): y label
@@ -288,7 +375,10 @@ Args:
 Returns:
     plot of the data
 """
-function plot_data(data::Array{<:Number,2}; title::String="", x_label::String="", y_label::String="", scansize::Vector{<:Number}=Vector{Float64}(undef, 0), args...)
+function plot_data(data::Array{<:Number,2}; background::Background=no_correction, title::String="", x_label::String="", y_label::String="", scansize::Vector{<:Number}=Vector{Float64}(undef, 0), args...) :: Plots.Plot
+    if background != no_correction
+        data = correct_background(data, background)
+    end
     if length(scansize) == 2  # physical units
         xs = range(0, scansize[1], length=size(data)[2])
         ys = range(0, scansize[2], length=size(data)[1])
