@@ -241,10 +241,10 @@ function get_channel(image::SpmImage, channel_name::String; origin::String="lowe
     end
 
     if backward
-        data = transpose(reverse(image.data[:, :, i_channel * 2], dims=1))  # *2 for forward and backward
+        @views data = transpose(reverse(image.data[:, :, i_channel * 2], dims=1))  # *2 for forward and backward
         direction = bwd
     else
-        data = transpose(image.data[:, :, i_channel * 2 - 1])  # -1 because forward scan 
+        @views data = transpose(image.data[:, :, i_channel * 2 - 1])  # -1 because forward scan 
         direction = fwd
     end
     
@@ -276,7 +276,7 @@ function correct_background(data::Array{<:Number,2}, type::Background)::Array{<:
         y = vec(data)
 
         not_nan = findall(!isnan, y)  # we need to skip the NaN values, otherwise we get NaN results (using "missing" didn't help either)
-        @views p = X[not_nan,:] \ y[not_nan]
+        @views @inbounds p = X[not_nan,:] \ y[not_nan]
 
         data -= reshape(X * p, size(data))
     elseif type == line_average  # subtract line by line average
@@ -287,7 +287,7 @@ function correct_background(data::Array{<:Number,2}, type::Background)::Array{<:
         for y in eachcol(data)
             not_nan = findall(!isnan, y)
             if length(not_nan) > 0
-                @views y .-= mean(y[not_nan])
+                @views @inbounds y .-= mean(y[not_nan])
             end
         end
     elseif type == line_linear_fit_legacy
@@ -307,7 +307,7 @@ function correct_background(data::Array{<:Number,2}, type::Background)::Array{<:
 
             not_nan = findall(!isnan, y)
             if length(not_nan) > 0
-                @views α, β = X[not_nan,:] \ y[not_nan]
+                @views @inbounds α, β = X[not_nan,:] \ y[not_nan]
                 y .= y .- α - x .* β
             end
         end
@@ -328,8 +328,8 @@ function correct_background(data::Array{<:Number,2}, type::Background)::Array{<:
         for y in eachcol(data)
             not_nan = findall(!isnan, y)
             if length(not_nan) > 0
-                @views β = cov(x[not_nan], y[not_nan]) / var(x[not_nan])
-                @views α = mean(y[not_nan]) - β * mean(x[not_nan])
+                @views @inbounds β = cov(x[not_nan], y[not_nan]) / var(x[not_nan])
+                @views @inbounds α = mean(y[not_nan]) - β * mean(x[not_nan])
                 y .= y .- α - x .* β
             end
         end
