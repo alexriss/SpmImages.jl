@@ -499,7 +499,8 @@ function line_profile(image::SpmImage, channel_name::String, start_point::Vector
     # now switch to pixel units
     start_point_px = nm_to_pixels(image, start_point, origin)
     end_point_px = nm_to_pixels(image, end_point, origin)
-    width_col, width_row = nm_to_pixels(image, [width_x, width_y], "lower")
+    width_col = width_x * image.pixelsize[1] / image.scansize[1]
+    width_row = width_y * image.pixelsize[2] / image.scansize[2]
 
     # similar to skimage.measure_profile_line
     @views src_row, src_col = start_point_px[2], start_point_px[1]  # row is y, col is x
