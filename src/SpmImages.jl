@@ -27,6 +27,7 @@ mutable struct SpmImage
     
     scansize::Vector{Float64}
     scansize_unit::String
+    center::Vector{Float64}
     angle::Float64
     pixelsize::Vector{Int64}
     scan_direction::ScanDirection
@@ -36,7 +37,7 @@ mutable struct SpmImage
     start_time::DateTime
     acquisition_time::Float64
 end
-SpmImage(filename::String) = SpmImage(filename, OrderedDict(), [], [], [], [], "", 0, [], up, false, Dates.now(), 0)
+SpmImage(filename::String) = SpmImage(filename, OrderedDict(), [], [], [], [], "", [], 0, [], up, false, Dates.now(), 0)
 
 mutable struct SpmImageChannel
     name::String
@@ -229,6 +230,7 @@ function _load_image_nanonis!(image::SpmImage, output_info::Int64=1, header_only
         # parse some of the extracted data
         image.scansize = map(x -> parse(Float64, x) * 1e9, split(image.header["Scan range"]))  # 1e9 is to convert to nm
         image.scansize_unit = "nm"
+        image.center = map(x -> parse(Float64, x) * 1e9, split(image.header["Scan offset"]))  # 1e9 is to convert to nm
         image.angle = parse(Float64, image.header["Scan angle"])
         image.pixelsize = map(x -> parse(Int64, x), split(image.header["Scan pixels"]))
         image.scan_direction = image.header["Scan dir"] == "up" ? up : down
