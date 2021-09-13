@@ -6,10 +6,10 @@ The commands are somewhat similar to the ones in the respective python version [
 
 ## Installation
 
-The library is not listed in the Julia package registry, but it can be easily installed by:
+Install from the Julia package registry:
 
 ```julia
-pkg> add "https://github.com/alexriss/SpmImages.jl"
+pkg> add SpmImages
 ```
 
 ## Getting started
