@@ -32,12 +32,16 @@ mutable struct SpmImage
     pixelsize::Vector{Int64}
     scan_direction::ScanDirection
 
+    bias::Float64
     z_feedback::Bool
+    z_feedback_setpoint::Float64
+    z_feedback_setpoint_unit::String
+    z::Float64
     
     start_time::DateTime
     acquisition_time::Float64
 end
-SpmImage(filename::String) = SpmImage(filename, OrderedDict(), [], [], [], [], "", [], 0, [], up, false, Dates.now(), 0)
+SpmImage(filename::String) = SpmImage(filename, OrderedDict(), [], [], [], [], "", [], 0., [], up, 0., false, 0., "", 0., Dates.now(), 0.)
 
 mutable struct SpmImageChannel
     name::String
@@ -235,7 +239,15 @@ function _load_image_nanonis!(image::SpmImage, output_info::Int64=1, header_only
         image.pixelsize = map(x -> parse(Int64, x), split(image.header["Scan pixels"]))
         image.scan_direction = image.header["Scan dir"] == "up" ? up : down
 
-        image.z_feedback = image.header["Z-Controller>Controller status"] == "ON" ? true : false
+        image.bias = parse(Float64, image.header["Bias"])
+        
+        z_controller_data = split(image.header["Z-controller"], "\t")
+        image.z_feedback = z_controller_data[8] == "1" ? true : false
+        image.z_feedback_setpoint = parse(Float64, split(z_controller_data[9])[1])
+        image.z_feedback_setpoint_unit = split(z_controller_data[9])[2]
+        if haskey(image.header, "Z-Controller>Z (m)")
+            image.z = parse(Float64, image.header["Z-Controller>Z (m)"])
+        end
 
         image.start_time = DateTime(image.header["Rec date"] * " " * image.header["Rec time"], dateformat"d.m.Y H:M:S")
         image.acquisition_time = parse(Float64, image.header["Acq time"])
