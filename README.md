@@ -1,6 +1,7 @@
 # SpmImages.jl
 
 [![Build Status](https://github.com/alexriss/SpmImages.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/alexriss/SpmImages.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Coverage](https://codecov.io/gh/alexriss/SpmImages.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/alexriss/SpmImages.jl)
 
 A julia library to read and display SPM (scanning probe microscopy) images. Currently, only [Nanonis](https://www.specs-group.com/nanonis/products/) files are supported.
 
