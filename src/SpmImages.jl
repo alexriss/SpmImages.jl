@@ -29,7 +29,7 @@ mutable struct SpmImage
     scansize_unit::String
     center::Vector{Float64}
     angle::Float64
-    pixelsize::Vector{Int64}
+    pixelsize::Vector{Int}
     scan_direction::ScanDirection
 
     bias::Float64
@@ -61,7 +61,7 @@ Args:
 Raises:
     Error: If the file extension is not known.
 """
-function load_image(fname::String; output_info::Int64=1, header_only::Bool=false)::SpmImage
+function load_image(fname::String; output_info::Int=1, header_only::Bool=false)::SpmImage
     if !isfile(fname)
         error("Cannot find file $fname")
         return nothing
@@ -196,7 +196,7 @@ Args:
     output_info (int): Specifies the amount of output info to print to stdout when reading the files. 0 for no output, 1 for limited output, 2 for detailed output.
     header_only (bool): If true, then only header data is read, image data is ignored.
 """
-function _load_image_nanonis!(image::SpmImage, output_info::Int64=1, header_only::Bool=false)
+function _load_image_nanonis!(image::SpmImage, output_info::Int=1, header_only::Bool=false)
     if output_info > 0
         println("Reading header of $(image.filename)")
     end
@@ -236,7 +236,7 @@ function _load_image_nanonis!(image::SpmImage, output_info::Int64=1, header_only
         image.scansize_unit = "nm"
         image.center = map(x -> parse(Float64, x) * 1e9, split(image.header["Scan offset"]))  # 1e9 is to convert to nm
         image.angle = parse(Float64, image.header["Scan angle"])
-        image.pixelsize = map(x -> parse(Int64, x), split(image.header["Scan pixels"]))
+        image.pixelsize = map(x -> parse(Int, x), split(image.header["Scan pixels"]))
         image.scan_direction = image.header["Scan dir"] == "up" ? up : down
 
         image.bias = parse(Float64, image.header["Bias"])
