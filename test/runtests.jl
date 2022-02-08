@@ -42,3 +42,7 @@ end
     @test correct_background(d, line_linear_fit) == [0.0 0.0 0.0; 0.0 0.0 0.0; 0.0 0.0 0.0]
     @test all(correct_background(d, vline_linear_fit, false) - [-0.666667 0.0 0.666667; 1.33333 0.0 -1.33333; -0.666667 0.0 0.666667] .< 1e-5)
 end
+
+@testset "Line profiles" begin
+    # todo: check line profiles, also for non-square images and images with anisotropic pixel-densities
+end
