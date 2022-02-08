@@ -411,8 +411,11 @@ function correct_background(data::Array{<:Number,2}, type::Background, offset::B
         end
     end
     if type == subtract_minimum || offset
-        m = minimum(filter(!isnan, data))
-        data .-= m
+        filtered = filter(!isnan, data)
+        if length(filtered) > 0
+            m = minimum(filtered)
+            data .-= m
+        end
     end
     return data
 end
