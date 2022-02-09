@@ -6,10 +6,13 @@ using DataStructures:OrderedDict
 using Dates
 using Plots
 using Statistics
+using TOML
 
 export SpmImage, load_image, get_channel, plot_channel, plot_data, correct_background, line_profile
 export Background
 export no_correction, subtract_minimum, plane_linear_fit, line_average, vline_average, line_linear_fit, vline_linear_fit
+
+const VERSION = VersionNumber(TOML.parsefile(joinpath(@__DIR__, "../Project.toml"))["version"]) 
 
 
 @enum ScanDirection up down
