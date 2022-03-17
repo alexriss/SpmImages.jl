@@ -24,5 +24,6 @@ Code examples can be found in the [example notebook](demo/example.ipynb).
 
 - [SpmImageTycoon.jl](https://github.com/alexriss/SpmImageTycoon.jl): App to organize SPM images and spectra.
 - [SpmSpectroscopy.jl](https://github.com/alexriss/SpmSpectroscopy.jl): Julia library to read and analyze SPM spectra.
+- [SpmGrids.jl](https://github.com/alexriss/SpmGrids.jl): Julia library to read and analyze SPM grid spectroscopy.
 - [imag*ex*](https://github.com/alexriss/imagex): Python scripts to analyze scanning probe images.
 - [grid*ex*](https://github.com/alexriss/gridex): Python scripts to analyze 3D grid data.
