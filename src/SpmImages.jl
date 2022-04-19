@@ -9,6 +9,7 @@ using Statistics
 using TOML
 
 export SpmImage, load_image, get_channel, plot_channel, plot_data, correct_background, line_profile
+export pixels_to_nm, nm_to_pixels
 export Background
 export no_correction, subtract_minimum, plane_linear_fit, line_average, vline_average, line_linear_fit, vline_linear_fit
 
@@ -118,10 +119,11 @@ Returns:
     point (Vector of Number): x and y (column and row) coordinates in pixel units
 """
 function nm_to_pixels(image::SpmImage, point::Vector{<:Number}, origin::String="lower")::Vector{<:Number}
+    pixelsize = image.pixelsize .- 1
     if origin == "upper"  # pixel-origin is top left, scan-units origin is bottom left
-        return 1 .+ [point[1] * image.pixelsize[1] / image.scansize[1], image.pixelsize[2] - point[2] * image.pixelsize[2] / image.scansize[2]]  # 1.+ because of 1-based indexing
+        return 1 .+ [point[1] * pixelsize[1] / image.scansize[1], pixelsize[2] - point[2] * pixelsize[2] / image.scansize[2]]  # 1.+ because of 1-based indexing
     else
-        return 1 .+ [point[1] * image.pixelsize[1] / image.scansize[1], point[2] * image.pixelsize[2] / image.scansize[2]]  # 1.+ because of 1-based indexing
+        return 1 .+ [point[1] * pixelsize[1] / image.scansize[1], point[2] * pixelsize[2] / image.scansize[2]]  # 1.+ because of 1-based indexing
     end
 end
 
@@ -136,11 +138,12 @@ Returns:
     point (Vector of Number): x and y coordinates in nm units
 """
 function pixels_to_nm(image::SpmImage, point::Vector{<:Number}, origin::String="lower")::Vector{<:Number}
+    pixelsize = image.pixelsize .- 1
     x, y = point[1] - 1, point[2] - 1  # -1 because of 1-based indexing
     if origin == "upper"  # pixel-origin is top left, scan-units origin is bottom left
-        return [x / image.pixelsize[1] * image.scansize[1], image.scansize[2] - y / image.pixelsize[2] * image.scansize[2]]
+        return [x / pixelsize[1] * image.scansize[1], image.scansize[2] - y / pixelsize[2] * image.scansize[2]]
     else
-        return [x / image.pixelsize[1] * image.scansize[1], y / image.pixelsize[2] * image.scansize[2]]
+        return [x / pixelsize[1] * image.scansize[1], y / pixelsize[2] * image.scansize[2]]
     end
 end
 

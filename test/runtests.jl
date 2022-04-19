@@ -27,6 +27,14 @@ using Test
     @test get_channel(ima, "current bwd").data[30, 55] == 6.729436f-10
 end
 
+@testset "Coordinate conversion" begin
+    ima = load_image("Image_445.sxm")
+    @test pixels_to_nm(ima, [1, 1]) ≈ [0., 0.]
+    @test pixels_to_nm(ima, [96, 192]) ≈ [2.0, 4.0]
+    @test nm_to_pixels(ima, [0., 0.]) ≈ [1., 1.]
+    @test nm_to_pixels(ima, [2.0, 4.0]) ≈ [96, 192]
+end
+
 @testset "Background correction" begin
     d = [1 2 3; 2 3 4; 3 4 5]
     @test all(correct_background(d, plane_linear_fit) .< 2e-15)
