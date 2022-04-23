@@ -54,3 +54,20 @@ end
 @testset "Line profiles" begin
     # todo: check line profiles, also for non-square images and images with anisotropic pixel-densities
 end
+
+@testset "drift" begin
+    im1 = load_image("01514.sxm")
+    im2 = load_image("01514.sxm")
+    im2.angle = 12.1
+    err = nothing
+    try
+        calc_drift(im1, im2)
+    catch err
+    end
+    @test err isa Exception
+    @test contains(sprint(showerror, err), "same rotation")
+
+    im1 = load_image("01514.sxm")
+    im2 = load_image("01514.sxm")
+
+end
