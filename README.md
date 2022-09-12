@@ -1,3 +1,5 @@
+<img width="100" height="100" src="logo.svg?raw=true" />
+
 # SpmImages.jl
 
 [![Build Status](https://github.com/alexriss/SpmImages.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/alexriss/SpmImages.jl/actions/workflows/CI.yml?query=branch%3Amain)
