@@ -61,7 +61,7 @@ end
     im2.angle = 12.1
     err = nothing
     try
-        calc_drift(im1, im2)
+        calc_drift_xy(im1, im2)
     catch err
     end
     @test err isa Exception
