@@ -22,6 +22,8 @@ end
 Calculates xy drift between `image1` and `image2` via cross-correlations of `channel` of the two images.
 The images do not need to be equal in size, but rotation is not accounted for explicitely.
 Returns the x and y drift in `nm/s`.
+
+*Experimental and not well tested yet.*
 """
 function calc_drift_xy(filename1::AbstractString, filename2::AbstractString, channel="Z")::Vector{Float64}
     image1 = load_image(filename1)
@@ -35,7 +37,9 @@ end
 
 Calculates xy drift between `image1` and `image2` via cross-correlations of `channel` of the two images.
 The images do not need to be equal in size, but the rotation of both should be the same.
-Returns the x and y drift in `nm/s`.
+Returns the x and y drift in `nm/s` with respect to the angle of the images.
+
+*Experimental and not well tested yet.*
 """
 function calc_drift_xy(image1::SpmImage, image2::SpmImage, channel="Z")::Vector{Float64}
     if image1.angle != image2.angle
@@ -74,12 +78,6 @@ function calc_drift_xy(image1::SpmImage, image2::SpmImage, channel="Z")::Vector{
     drift_nm = pixels_to_nm(image_base, drift_px) - image1.center + image2.center
     @show diff_secs, drift_nm, drift_nm ./ diff_secs
 
-    if image1.angle != 0.
-        θ = deg2rad(image1.angle)   # positive angles rotate rightwards in the nanonis, we rotate back
-        rot_matrix = [cos(θ) -sin(θ); sin(θ) cos(θ)]
-        drift_nm *= rot_matrix
-    end
-
     return drift_nm ./ diff_secs
 end
 
@@ -95,6 +93,7 @@ given, or an `SpmImage`. If `nothing` is given, then no change of the origin is 
 If `skew` is `true` (default), then the image will be
 transformed and the image dimensions updated accodingly.
 
+*Experimental and not well tested yet.*
 """
 function correct_drift!(image::SpmImage, drift::Vector{Float64};
     ref_time::Union{DateTime,SpmImage,Nothing}=nothing, skew::Bool=true)::Nothing
@@ -148,6 +147,8 @@ the ref_time of the current image.
 `drift` should be a 2-element or 3-element vector for x,y or x,y,z drift, respecitvely.
 If `skew` is `true` (default), then the image will be
 transformed and the image dimensions updated accodingly.
+
+*Experimental and not well tested yet.*
 """
 function correct_drift(image::SpmImage, drift::Vector{Float64};
     ref_time::Union{DateTime,SpmImage,Nothing}=nothing, skew::Bool=true)::SpmImage
@@ -168,11 +169,6 @@ function linear_map(image::SpmImage, drift::Union{Nothing,Vector{Float64}}=nothi
         drift = image.drift
     end
     drift = -drift[1:2] ./ image.scansize  # xy drift relative to imagesize
-    if image.angle != 0.
-        θ = -deg2rad(image.angle)  # negative sign, we undo the rotation in function `calc_drift_xy`
-        rot_matrix = [cos(θ) -sin(θ); sin(θ) cos(θ)]
-        drift *= rot_matrix
-    end
     cols, rows = image.pixelsize
 
     # x-position at end of first row
