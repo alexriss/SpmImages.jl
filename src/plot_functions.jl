@@ -8,7 +8,7 @@ Args:
 Returns:
     plot of channel.
 """
-function plot_channel(image::SpmImage, channel_name::String; background::Background=no_correction, pixel_units::Bool=false, args...) :: Plots.Plot
+function plot_channel(image::SpmImage, channel_name::String; background::Background=no_correction, pixel_units::Bool=false, args...)
     channel = get_channel(image, channel_name)
     title = string_prettify(channel_name) * " [$(channel.unit)]"
 
@@ -36,7 +36,10 @@ Args:
 Returns:
     plot of the data.
 """
-function plot_data(data::Array{<:Number,2}; background::Background=no_correction, title::String="", x_label::String="", y_label::String="", scansize::Vector{<:Number}=Vector{Float64}(undef, 0), args...) :: Plots.Plot
+function plot_data(data::Array{<:Number,2}; background::Background=no_correction, title::String="", x_label::String="", y_label::String="", scansize::Vector{<:Number}=Vector{Float64}(undef, 0), args...)
+    isdefined(Main, :Plots) || @warn """Plots might not be imported. Please import Plots manually: "using Plots"."""
+    Plots = Main.Plots
+    
     if background != no_correction
         data = correct_background(data, background)
     end
@@ -45,16 +48,42 @@ function plot_data(data::Array{<:Number,2}; background::Background=no_correction
         ys = range(0, scansize[2], length=size(data)[1])
         xlim = (0, scansize[1])
         ylim = (0, scansize[2])
-        p = heatmap(xs, ys, data, aspect_ratio=1, color=:grays; args...)
+        p = Plots.heatmap(xs, ys, data, aspect_ratio=1, color=:grays; args...)
     else  # pixel units
-        p = heatmap(data, aspect_ratio=1, color=:grays; args...)
+        p = Plots.heatmap(data, aspect_ratio=1, color=:grays; args...)
         xlim = (0, size(data)[2])
         ylim = (0, size(data)[1])
     end
-    title!(p, title)
-    xlabel!(p, x_label)
-    ylabel!(p, y_label)
-    xlims!(p, xlim)
-    ylims!(p, ylim)
+    Plots.title!(p, title)
+    Plots.xlabel!(p, x_label)
+    Plots.ylabel!(p, y_label)
+    Plots.xlims!(p, xlim)
+    Plots.ylims!(p, ylim)
     return p
+end
+
+
+"""scales and offsets an array, so that each value lies between 0 and 1.
+If range_selected is given, this range is normalized to lie between 0 and 1.
+Returns the minimum and maximum value of the original array."""
+function normalize01!(d::AbstractArray; range_selected::Array{<:Number}=Float64[])::Tuple{Number,Number}
+    d_ = filter(!isnan, d)
+    if length(d_) > 0
+        vmin_original, vmax_original = minimum(d_), maximum(d_)  # minimum and maximum function return NaN otherwise
+    else
+        vmin_original = 0
+        vmax_original = 0
+    end
+    if vmin_original == vmax_original
+        d .= 0
+    else
+        vmin, vmax = vmin_original, vmax_original
+        if length(range_selected) == 2 && range_selected[1] != range_selected[2]
+            span = vmax - vmin
+            vmax = vmin + span * range_selected[2]
+            vmin += span * range_selected[1]
+        end
+        d[:] = (d .- vmin) ./ (vmax - vmin)
+    end
+    return vmin_original, vmax_original
 end
