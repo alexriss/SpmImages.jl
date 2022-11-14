@@ -7,7 +7,6 @@ using DataStructures:OrderedDict
 using Dates
 using ImageFiltering
 using ImageTransformations
-using Plots
 using Printf
 using Statistics
 using TOML
