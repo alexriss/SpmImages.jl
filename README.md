@@ -20,6 +20,28 @@ pkg> add SpmImages
 
 ## Getting started
 
+```julia
+using SpmImages
+using Plots  # needs to be manually imported for plotting functions
+
+# load an SPM image
+ima = load_image("Image_445.sxm");
+
+# Plot a specific image channel directly from the image
+plot_channel(ima, "frequency shift")
+
+# Get a channel as 2D data and directly plot it
+c = get_channel(ima, "current");
+plot_data(c.data, color=:lapaz, title="current", legend=:none)
+
+# Plot using the Images library
+using Images
+d = get_channel(ima, "current bwd", origin="upper").data
+d = d .- minimum(d)
+d = d ./ maximum(d)
+Gray.(d)
+```
+
 Code examples can be found in the [example notebook](demo/example.ipynb).
 
 ## Get in touch
