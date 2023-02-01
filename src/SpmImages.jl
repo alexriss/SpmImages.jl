@@ -293,17 +293,18 @@ function _load_image_nanonis!(image::SpmImage, output_info::Int=1, header_only::
 
         image.start_time = DateTime(image.header["Rec date"] * " " * image.header["Rec time"], dateformat"d.m.Y H:M:S")
         image.acquisition_time = parse(Float64, image.header["Acq time"])
-        
+
+        r = _get_channel_names_units(image)
+        if length(r) != 2
+            return
+        end
+        image.channel_names, image.channel_units = r
+
         # read body
         if !header_only
             if output_info > 0
                 println("Reading body of $(image.filename)")
             end
-            r = _get_channel_names_units(image)
-            if length(r) != 2
-                return
-            end
-            image.channel_names, image.channel_units = r
             
             num_channels = length(image.channel_names) * 2    # the "*2" is there because of forward and backward channels
             x_pixels, y_pixels = image.pixelsize
