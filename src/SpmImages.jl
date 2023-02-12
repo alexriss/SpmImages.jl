@@ -493,6 +493,27 @@ function line_profile(image::SpmImage, channel_name::String, start_point::Vector
     else
         data = channel.data
     end
+
+    return line_profile(image, data, start_point, end_point, width, origin=origin)
+end
+
+
+"""Calculates a line profile for 2d data.
+Args:
+    image (SpmImage): SpmImage object
+    data (2D array): channel data.
+    start_point (1D array of Number): coordinates of the start point (in scan-units)
+    end_point (1D array of Number): coordinates of the start point (in scan-units)
+    width (Number):: width of the line (in scan-units)
+    origin (str): origin of the image ("lower" or "upper")
+Returns:
+    A tuple of three arrays (x/y coordinates, lengths, data values) and two numbers (start point value and end point value).
+    The line profile values are subject to the line width, whereas the start and end point values are values at the exact point.
+"""
+function line_profile(image::SpmImage, data::Array{<:Number,2},
+    start_point::Vector{<:Number}, end_point::Vector{<:Number}, width::Number=0;
+    origin::String="lower")::Tuple{Vector{Vector{<:Number}}, Vector{<:Number}, Vector{Union{<:Number,Missing}}, Union{<:Number,Missing}, Union{<:Number,Missing}}
+
     # x and y width (nm units)
     d_x, d_y = end_point - start_point
     theta = atan(d_y, d_x)  # arctan2
