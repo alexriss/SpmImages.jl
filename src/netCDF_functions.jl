@@ -199,9 +199,9 @@ function get_channel_netCDF(image::SpmImage, i_channel::Int, direction::Directio
     origin::String="lower")
 
     if direction == bwd
-        @views data = transpose(image.data[:, :, i_channel * 2])  # *2 for forward and backward
+        @views data = transpose(reverse(image.data[:, :, i_channel * 2], dims=1))  # *2 for forward and backward
     else
-        @views data = transpose(reverse(image.data[:, :, i_channel * 2 - 1], dims=1))  # -1 because forward scan 
+        @views data = transpose(image.data[:, :, i_channel * 2 - 1])  # -1 because forward scan 
     end
 
     # drift correction
