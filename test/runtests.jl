@@ -34,6 +34,60 @@ using Test
     @test get_channel(ima, "frequency shift backwards").data[78, 49] ≈ -0.581533f0
 end
 
+@testset "File loading nc" begin
+    ima = load_image("nc/chigwell009-M-Xp-Topo.nc")
+    @test ima.channel_names == ["Topo"]
+    @test ima.channel_units == ["V"]
+    @test ima.scansize == [10000.0, 10000.0]
+    @test ima.scansize_unit == "nm"
+    @test ima.pixelsize == [64, 64]
+    @test ima.scan_direction == SpmImages.down
+    @test ima.bias ≈ -5.0
+
+    @test ima.z ≈ 0.022131370724876562
+
+    ima = load_image(readdir("nc", join=true)[1:12])
+
+    @test ima.channel_names == ["Topo", "ADC1", "ADC2", "ADC4", "ADC6", "ADC7"]
+    @test ima.channel_units == ["V", "V", "V", "V", "V", "V"]
+    @test ima.scansize == [10000.0, 10000.0]
+    @test ima.scansize_unit == "nm"
+    @test ima.pixelsize == [64, 64]
+    @test ima.scan_direction == SpmImages.down
+    @test ima.bias ≈ -5.0
+
+    @test ima.z ≈ 0.022131370724876562
+
+    @test ima.acquisition_time == 382.0
+    @test ima.header["View Offset Z [Ang]"] == "0.0"
+    @test ima.header["SRanger: Scan Event Xp Bias [Volt]"] == "-5.135874684612657e305"
+    @test ima.header["t_end"] == "1638465030"
+
+    @test ima.header["InstrumentName"] == "LT-AFM"
+    @test ima.header["InstrumentType"] == "AFM"
+    @test ima.header["HardwareCtrlType"] == "SRangerMK2:SPM"
+    @test ima.header["Version"] == "3.48.0"
+    @test ima.header["HardwareConnectionDev"] == "/dev/sranger_mk2_0"
+    @test ima.header["username"] == "Nobody"
+    @test ima.header["# Pixels in X, contains X-Pos Lookup"] == "Float32[-50000.0, -48412.7, -46825.4, -45238.094, -43650.793, -42063.492, -40476.19, -38888.89, -37301.586, -35714.285, -34126.984, -32539.682, -30952.38, -29365.08, -27777.777, -26190.477, -24603.174, -23015.873, -21428.572, -19841.27] ..."
+
+    @test ima.data[12,42,3] ≈ 1139.6155f0
+    @test ima.data[9,18,10] ≈ 169.42552f0
+    @test ima.data[60,60,6] ≈ 3854.3176f0
+
+    @test get_channel(ima, "Topo").name == "Topo"
+    @test get_channel(ima, "Adc1 bwd").name == "ADC1"
+    @test get_channel(ima, "AdC1 backward  ").direction == SpmImages.bwd
+    @test get_channel(ima, "topo").data[30, 55] ≈ -4989.886f0
+    @test get_channel(ima, "topo bwd").data[30, 55] ≈ -4891.791f0
+    @test get_channel(ima, "topo").data[12, 9] ≈ -20631.338f0
+    @test get_channel(ima, "topo bwd").data[12, 9] ≈ -20485.096f0
+    @test get_channel(ima, "ADC2").data[8, 60] ≈ 3878.9294f0
+    @test get_channel(ima, "adc2 [bwd] ").data[8, 49] ≈ 3858.95f0
+    @test get_channel(ima, "adc4").data[49, 1] ≈ 6102.0874f0
+    @test get_channel(ima, "adC4 backwards").data[49, 1] ≈ 6104.7705f0
+end
+
 @testset "Coordinate conversion" begin
     ima = load_image("Image_445.sxm")
     @test pixels_to_nm(ima, [1, 1]) ≈ [0., 0.]
