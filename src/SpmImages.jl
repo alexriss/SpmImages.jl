@@ -1,5 +1,3 @@
-__precompile__()
-
 module SpmImages
 
 using CoordinateTransformations
@@ -7,6 +5,7 @@ using DataStructures:OrderedDict
 using Dates
 using ImageFiltering
 using ImageTransformations
+using NetCDF
 using Printf
 using Statistics
 using TOML
@@ -20,6 +19,7 @@ export no_correction, subtract_minimum, plane_linear_fit, line_average, vline_av
 const VERSION = VersionNumber(TOML.parsefile(joinpath(@__DIR__, "../Project.toml"))["version"]) 
 
 
+@enum FileType sxm nc
 @enum ScanDirection up down
 @enum Direction bwd fwd
 @enum Background no_correction subtract_minimum plane_linear_fit line_average vline_average line_linear_fit vline_linear_fit line_linear_fit_legacy vline_linear_fit_legacy
@@ -32,8 +32,8 @@ const DriftCorrection_display = Dict(
 
 mutable struct SpmImage
     filename::String
+    type::FileType
     header::AbstractDict
-    # channels::Vector{Dict}
     data::Array{Float32}
     channel_names::Vector{String}
     channel_units::Vector{String}
@@ -57,7 +57,7 @@ mutable struct SpmImage
     drift_correction::DriftCorrection
     drift::Vector{Float64}   # drift in units of [scansize] / [acquisition_time]
 end
-SpmImage(filename::String) = SpmImage(filename, OrderedDict(), Float32[], String[], String[],
+SpmImage(filename::String, type::FileType) = SpmImage(filename, type, OrderedDict(), Float32[], String[], String[],
     Float64[], "", Float64[], 0., Float64[], up,
     0., false, 0., "", 0.,
     Date(-2), 0.,
@@ -72,6 +72,7 @@ end
 SpmImageChannel() = SpmImageChannel("", "", fwd, [])
 
 
+include("netCDF_functions.jl")
 include("plot_functions.jl")
 include("drift_functions.jl")
 
@@ -81,40 +82,49 @@ function Base.show(io::IO, i::SpmImage)
         print(io, "SpmImage(\"", i.filename, "\")")
     else
         b = @sprintf "%0.2g" i.bias
-        scansize = @sprintf "%0.2g x %0.2g" i.scansize[1] i.scansize[2]
+        scansize = join([@sprintf("%0.2g", x) for x in i.scansize], " x ")
+        pixelsize = join([string(x) for x in i.pixelsize], " x ")
+        if scansize == ""
+            scansize = "-"
+        end
+        if pixelsize == ""
+            pixelsize = "-"
+        end
         dc = DriftCorrection_display[i.drift_correction]
         print(io, "SpmImage(\"", i.filename, "\", ",
         "bias: ", b, " V, ",
         length(i.channel_names), " channels, ",
-        scansize, " nm, ", i.pixelsize[1], " x ", i.pixelsize[2], " pixels, ",
+        scansize, " nm, ", pixelsize, " pixels, ",
         "drift correction: ", dc, ")")
     end
 end
 
 
-"""Loads SPM data from a Nanonis sxm file.
-Args:
-    fname (str): Filename of the data file to read.
-    output_info (int): Specifies the amount of output info to print to stdout when reading the files. 0 for no output, 1 for limited output, 2 for detailed output.
-    header_only (bool): If true, then only header data is read, image data is ignored.
-
-Raises:
-    Error: If the file extension is not known.
 """
-function load_image(fname::String; output_info::Int=0, header_only::Bool=false)::SpmImage
-    if !isfile(fname)
-        error("Cannot find file $fname")
-        return nothing
+    load_image(fname::Union{String,Vector{String}}; output_info::Int=0, header_only::Bool=false)::SpmImage
+
+Loads an SPM image from a file, and returns an `SpmImage` object. The file extension is used to determine the file type.
+Nanonis .sxm files are supported, as well as GSXM netCDF files. For Nanonis .sxm files, only one file can be read - if many files are specified, only the first one is read.
+For netCDF files, the `fname` argument can be a vector of strings, specifying all the file names of the netCDF files to load.
+Most of the header information is then read from the first file.
+
+`output_info` specifies the amount of output info to print to stdout when reading the files. 0 for no output, 1 for limited output, 2 for detailed output.
+If `header_only` is `true` then only header data is read, image data is ignored.
+"""
+function load_image(fname::Union{String,Vector{String}}; output_info::Int=0, header_only::Bool=false)::SpmImage
+    if isa(fname, String)
+        fname = [fname]
     end
-    
-    image = SpmImage(fname)
-    ext = rsplit(fname, "."; limit=2)[2]
+
+    ext = rsplit(fname[1], "."; limit=2)[2]
     if ext == "sxm"
-        _load_image_nanonis!(image, output_info, header_only)
+        image = load_image_nanonis(fname[1], output_info, header_only)
+    elseif ext == "nc"
+        image = load_image_netCDF(fname, output_info, header_only)
     else
         throw(ErrorException("Error: Unknown file type: $ext"))
     end
-    image
+    return image
 end
 
 
@@ -231,14 +241,17 @@ function _get_channel_names_units(image::SpmImage)::Tuple{Vector{String},Vector{
 end
 
 
-"""Loads header data from a Nanonis .sxm file
-
-Args:
-    image (SpmImage): SpmImage struct.
-    output_info (int): Specifies the amount of output info to print to stdout when reading the files. 0 for no output, 1 for limited output, 2 for detailed output.
-    header_only (bool): If true, then only header data is read, image data is ignored.
 """
-function _load_image_nanonis!(image::SpmImage, output_info::Int=1, header_only::Bool=false)
+    load_image_nanonis(fname::String, output_info::Int=1, header_only::Bool=false)
+
+Loads data from `fname`, specifying the file name of a Nanonis .sxm file, and returns an `SpmImage` object.
+
+`output_info` specifies the amount of output info to print to stdout when reading the files. 0 for no output, 1 for limited output, 2 for detailed output.
+If `header_only` is `true` then only header data is read, image data is ignored.
+"""
+function load_image_nanonis(fname::String, output_info::Int=1, header_only::Bool=false)
+    image = SpmImage(fname, sxm)
+
     if output_info > 0
         println("Reading header of $(image.filename)")
     end
@@ -314,6 +327,7 @@ function _load_image_nanonis!(image::SpmImage, output_info::Int=1, header_only::
             image.data = ntoh.(data)  # big-endian to host endian
         end
     end
+    return image
 end
 
 
