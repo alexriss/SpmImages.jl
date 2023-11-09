@@ -148,10 +148,11 @@ function get_channel_index(image::SpmImage, channel_name::String)
     else  # try lower case, as well as forward and backward suffixes
         channel_name_ = string_simplify(channel_name)
         channel_names = string_simplify.(image.channel_names)
-        if occursin(r"[^a-zA-Z0-9](bwd|b|back|backward|backwards)$", channel_name_)
+        reg = r"[^a-zA-Z0-9](bwd|b|back|backward|backwards|\[bwd\]|\[b\]|\[back\]|\[backward\]|\[backwards\])_*$"
+        if occursin(reg, channel_name_)
             backward = true
         end
-        channel_name_ = replace(channel_name_, r"[^a-zA-Z0-9](bwd|b|back|backward|backwards|f|fwd|forward)$" => "")
+        channel_name_ = replace(channel_name_, reg => "")
         if !(channel_name_ in channel_names)
             channel_name_ = replace(channel_name_, r"[^a-zA-Z0-9]" => "")
             channel_names = replace.(channel_names, r"[^a-zA-Z0-9]" => "")
