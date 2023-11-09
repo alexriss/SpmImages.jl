@@ -1,7 +1,49 @@
 const GXSM_FILENAME_ATTRIB_SEPARATOR = "-"
 const GXSM_FORWARD_SCAN_DIR = "Xp"
 const GXSM_BACKWARD_SCAN_DIR = "Xm"
-const GXSM_BACKWARD_MAXLENGTH_HEADER = 10
+const GXSM_BACKWARD_MAXLENGTH_HEADER = 20
+
+
+
+"""
+    get_channel_names_units_netCDF(image::SpmImage)
+
+Gets a list of all channel names and units in `image`.
+"""
+function get_channel_names_units_netCDF(image::SpmImage, fnames::Vector{String})
+    names = Vector{String}(undef, 0)
+    units = Vector{String}(undef, 0)
+    files_fwd = Dict{String, String}()
+    files_bwd = Dict{String, String}()
+
+    for fname in fnames
+        fbase, ext = rsplit(fname, "."; limit=2)
+        if ext != "nc"
+            error("File ($fname) has the wrong extension.")
+            continue
+        end
+        entries = split(fbase, GXSM_FILENAME_ATTRIB_SEPARATOR)
+        if length(entries) < 3
+            error("File ($fname) has the wrong naming format.")
+            continue
+        else
+            if entries[end] ∉ names  # there are backwards and forward channels, we only add once
+                push!(names, entries[end])
+                push!(units, "V")  # todo: how can I know the unit?
+
+                if entries[end-1] == GXSM_BACKWARD_SCAN_DIR
+                    files_bwd[entries[end]] = fname
+                elseif entries[end-1] == GXSM_FORWARD_SCAN_DIR
+                    files_fwd[entries[end]] = fname
+                elseif !haskey(files_fwd, entries[end])
+                    files_fwd[entries[end]] = fname
+                end
+            end
+        end
+    end
+    return names, units, files_fwd, files_bwd
+end
+
 
 """
     load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_only::Bool=false)
@@ -18,6 +60,9 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
     if output_info > 0
         println("Reading header of $(image.filename)")
     end
+
+    files_fwd = Dict{String, String}()
+    files_bwd = Dict{String, String}()
    
     NetCDF.open(fnames[1]) do nc
         # read header data
@@ -111,11 +156,31 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
         image.start_time = unix2datetime(nc.vars["t_start"][1])
         image.acquisition_time = nc.vars["time"][1]
 
-        return image
-
-        # todo: get channel names and units
-
-        # todo: read data
-
+        image.channel_names, image.channel_units, files_fwd, files_bwd = get_channel_names_units_netCDF(image, fnames)
     end
+
+    # read data
+    if !header_only
+        num_channels = length(image.channel_names) * 2    # the "*2" is there because of forward and backward channels (we assume so)
+        x_pixels, y_pixels = image.pixelsize
+        image.data = Array{Float32}(undef, x_pixels, y_pixels, num_channels)
+        for (i,ch) in enumerate(image.channel_names)
+            i_data_fwd = 2 * i - 1
+            i_data_bwd = 2 * i
+            if ch in keys(files_fwd)
+                fname = files_fwd[ch]
+                image.data[:,:,i_data_fwd] = NetCDF.ncread(fname, "FloatField")[:,:,1,1]
+            else
+                image.data[:,:,i_data_fwd] = fill(NaN32, x_pixels, y_pixels)
+            end
+            if ch in keys(files_bwd)
+                fname = files_bwd[ch]
+                output_info > 0 &&  println("Reading body of $(image.filename)")
+                image.data[:,:,i_data_bwd] = NetCDF.ncread(fname, "FloatField")[:,:,1,1]
+            else
+                image.data[:,:,i_data_bwd] = fill(NaN32, x_pixels, y_pixels)
+            end
+        end
+    end
+    return image
 end
