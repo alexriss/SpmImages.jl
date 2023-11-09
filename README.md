@@ -6,7 +6,7 @@
 [![Coverage](https://codecov.io/gh/alexriss/SpmImages.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/alexriss/SpmImages.jl)
 <a href="https://twitter.com/00alexx"><img src="https://img.shields.io/twitter/follow/00alexx?style=social" alt="Twitter"></a>
 
-A julia library to read and display SPM (scanning probe microscopy) images. Currently, only [Nanonis](https://www.specs-group.com/nanonis/products/) files are supported.
+A julia library to read and display SPM (scanning probe microscopy) images. Currently, [Nanonis](https://www.specs-group.com/nanonis/products/) and [GSXM](https://gxsm.sourceforge.net/) files are supported.
 
 The commands are somewhat similar to the ones in the respective python version [imag*ex*](https://github.com/alexriss/imagex).
 
@@ -25,7 +25,7 @@ using SpmImages
 using Plots  # needs to be manually imported for plotting functions
 
 # load an SPM image
-ima = load_image("Image_445.sxm");
+ima = load_image("Image_445.sxm")
 
 # Plot a specific image channel directly from the image
 plot_channel(ima, "frequency shift")
@@ -40,6 +40,21 @@ d = get_channel(ima, "current bwd", origin="upper").data
 d = d .- minimum(d)
 d = d ./ maximum(d)
 Gray.(d)
+```
+
+If you want to load GSXM images, use:
+
+```julia
+# load one channel
+ima = load_image("dataset007-Xp-Topo.nc")
+
+# load all channels into one object
+fnames = filter(x -> occursin("dataset007-", x), readdir("nc", join=true))
+ima = load_image(fnames)
+
+# get the channel data
+d1 = get_channel(ima, "Topo", origin="upper").data
+d2 = get_channel(ima, "ADC2 bwd", origin="upper").data
 ```
 
 Code examples can be found in the [example notebook](demo/example.ipynb).
