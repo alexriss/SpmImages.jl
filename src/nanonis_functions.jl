@@ -1,12 +1,11 @@
-"""Gets channel information from image headers
-
-Args:
-    image (SpmImage): SpmImage object.
-Returns:
-    names, units: a tuple of arrays of strings specifying the channel names and their respective units; or empty tuple if information cant be extracted.
 """
-function get_channel_names_units(image::SpmImage)
+    get_channel_names_units_nanonis(image::SpmImage)
+
+Gets a list of all channel names and units in `image`.
+"""
+function get_channel_names_units_nanonis(image::SpmImage)
     #returns Tuple{Vector{String},Vector{String}}
+    
     lines = split(image.header["Data info"], "\n")
     popfirst!(lines) # first row are the headers: SpmImageChannel Name Unit Direction Calibration Offset
     names = Vector{String}(undef, 0)
@@ -92,7 +91,7 @@ function load_image_nanonis(fname::String, output_info::Int=1, header_only::Bool
         image.start_time = DateTime(image.header["Rec date"] * " " * image.header["Rec time"], dateformat"d.m.Y H:M:S")
         image.acquisition_time = parse(Float64, image.header["Acq time"])
 
-        r = get_channel_names_units(image)
+        r = get_channel_names_units_nanonis(image)
         if length(r) != 2
             return
         end
