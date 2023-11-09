@@ -131,6 +131,62 @@ function load_image(fname::Union{String,Vector{String}}; output_info::Int=0, hea
 end
 
 
+"""
+    get_i_channel(image::SpmImage, channel_name::String)
+
+Returns the channel index and scan direction corresponding to `channel_name`. This is used for indexing `image.data.`
+"""
+function get_channel_index(image::SpmImage, channel_name::String)
+    backward = false
+    if channel_name in image.channel_names
+        i_channel = findfirst(x -> x == channel_name, image.channel_names)
+    elseif endswith(channel_name, " bwd") && channel_name[1:end-4] in image.channel_names
+        i_channel = findfirst(x -> x == channel_name[1:end-4], image.channel_names)
+        backward = true
+    elseif endswith(channel_name, " fwd") && channel_name[1:end-4] in image.channel_names
+        i_channel = findfirst(x -> x == channel_name[1:end-4], image.channel_names)
+    else  # try lower case, as well as forward and backward suffixes
+        channel_name_ = string_simplify(channel_name)
+        channel_names = string_simplify.(image.channel_names)
+        if occursin(r"[^a-zA-Z0-9](bwd|b|back|backward|backwards)$", channel_name_)
+            backward = true
+        end
+        channel_name_ = replace(channel_name_, r"[^a-zA-Z0-9](bwd|b|back|backward|backwards|f|fwd|forward)$" => "")
+        if !(channel_name_ in channel_names)
+            channel_name_ = replace(channel_name_, r"[^a-zA-Z0-9]" => "")
+            channel_names = replace.(channel_names, r"[^a-zA-Z0-9]" => "")
+        end
+        if !(channel_name_ in channel_names)
+            println("Error: Channel $channel_name does not exist in $(image.filename).")
+            println("Available channels are: " * join(image.channel_names, ", ") * ".")
+            error("Channel $channel_name not found.")
+            return SpmImageChannel()
+        end
+        i_channel = findfirst(x -> x == channel_name_, channel_names)
+    end
+
+    direction = backward ? bwd : fwd
+    return i_channel, direction
+end
+
+
+"""
+    get_channel(image::SpmImage, channel_name::String; origin::String="lower")
+
+Gets the channel object for `channel_name` in `image`.
+ `origin` specifies the origin of the image, either "upper" or "lower".
+"""
+function get_channel(image::SpmImage, channel_name::String; origin::String="lower")
+    i_channel, direction = get_channel_index(image, channel_name)
+
+    if image.type == sxm
+        return get_channel_nanonis(image, i_channel, direction; origin=origin)
+    elseif image.type == nc
+        return get_channel_netCDF(image, i_channel, direction; origin=origin)
+    end
+end
+
+
 """Simplifies a string (i.e. replaces space for "_", and makes it lowercase
 
 Args:

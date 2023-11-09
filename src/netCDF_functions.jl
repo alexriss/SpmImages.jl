@@ -30,14 +30,15 @@ function get_channel_names_units_netCDF(image::SpmImage, fnames::Vector{String})
             if entries[end] ∉ names  # there are backwards and forward channels, we only add once
                 push!(names, entries[end])
                 push!(units, "V")  # todo: how can I know the unit?
+            end
 
-                if entries[end-1] == GXSM_BACKWARD_SCAN_DIR
-                    files_bwd[entries[end]] = fname
-                elseif entries[end-1] == GXSM_FORWARD_SCAN_DIR
-                    files_fwd[entries[end]] = fname
-                elseif !haskey(files_fwd, entries[end])
-                    files_fwd[entries[end]] = fname
-                end
+            # create list of fiels for fwd and bwd directions
+            if entries[end-1] == GXSM_BACKWARD_SCAN_DIR
+                files_bwd[entries[end]] = fname
+            elseif entries[end-1] == GXSM_FORWARD_SCAN_DIR
+                files_fwd[entries[end]] = fname
+            elseif !haskey(files_fwd, entries[end])
+                files_fwd[entries[end]] = fname
             end
         end
     end
@@ -162,6 +163,8 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
 
     # read data
     if !header_only
+        @show files_fwd
+        @show files_bwd
         num_channels = length(image.channel_names) * 2    # the "*2" is there because of forward and backward channels (we assume so)
         x_pixels, y_pixels = image.pixelsize
         image.data = Array{Float32}(undef, x_pixels, y_pixels, num_channels)
@@ -184,5 +187,34 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
         end
     end
     return image
+end
+
+
+"""
+    get_channel_netCDF(image::SpmImage, i_channel::Int, direction::Direction;
+        origin::String="lower")
+
+Gets the channel object for `i_channel` in `image`.
+`origin` specifies the origin of the image, either "upper" or "lower".
+"""
+function get_channel_netCDF(image::SpmImage, i_channel::Int, direction::Direction;
+    origin::String="lower")
+
+    if direction == bwd
+        @views data = transpose(image.data[:, :, i_channel * 2])  # *2 for forward and backward
+    else
+        @views data = transpose(reverse(image.data[:, :, i_channel * 2 - 1], dims=1))  # -1 because forward scan 
+    end
+
+    # drift correction
+    if image.drift_correction === drift_full
+        data = drift_corr_data(image, data)
+    end
+    
+    if origin == "lower" 
+        data = reverse(data, dims=1)
+    end
+        
+    return SpmImageChannel(image.channel_names[i_channel], image.channel_units[i_channel], direction, data)
 end
 
