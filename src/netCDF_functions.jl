@@ -24,17 +24,15 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
 
         # global attributes
         for (k,v) in nc.gatts
-            break
             image.header[k] = v
         end
 
         for name in keys(nc.vars)
-            break
             var = nc.vars[name]
-            if haskey(var.atts, "long_name")
-                key = var.atts["long_name"]
-            elseif haskey(var.atts, "short_name")
+            if haskey(var.atts, "short_name")
                 key = var.atts["short_name"]
+            elseif haskey(var.atts, "long_name")
+                key = var.atts["long_name"]
             elseif haskey(var.atts, "label")
                 key = var.atts["label"] * " (" * name * ")"
             else
@@ -57,32 +55,30 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
             end
 
             if typeof(var) <: NcVar{NetCDF.ASCIIChar}
-                if haskey(nc.dim, name)
-                    val = var[1:nc.dim[name].dimlen]
-                elseif haskey(nc.dim, name * "_dim")
-                    val = var[1:nc.dim[name * "_dim"].dimlen]
+                if var.ndim == 0
+                    val = var[:]
+                elseif var.ndim == 1
+                    val = var[1:var.dim[1].dimlen]
                 else
                     val = var[:]
                 end
-                image.header[key] = strip(replace(String(val), '\0' => ' '))
+               image.header[key] = strip(replace(String(val), '\0' => ' '))
             elseif typeof(var) <: NcVar{<:Number}
-                if haskey(nc.dim, name)
-                    if nc.dim[name].dimlen > GXSM_BACKWARD_MAXLENGTH_HEADER
+                if var.ndim == 0
+                    val = var[1]
+                elseif var.ndim == 1
+                    l = var.dim[1].dimlen
+                    if l == 1
+                        val = var[1]
+                        image.header[key] = string(val)
+                    elseif l > GXSM_BACKWARD_MAXLENGTH_HEADER
                         val = var[1:GXSM_BACKWARD_MAXLENGTH_HEADER]
                         image.header[key] = string(val) * " ..."
                     else
-                        val = var[1:nc.dim[name].dimlen]
+                        val = var[1:l]
                         image.header[key] = string(val)
                     end
-                elseif length(var) > GXSM_BACKWARD_MAXLENGTH_HEADER
-                    val = var[1:GXSM_BACKWARD_MAXLENGTH_HEADER]
-                    image.header[key] = string(val) * " ..."
-                elseif length(var) > 1
-                    val = var[:]
-                    image.header[key] = string(val)
-                else
-                    val = var[1]
-                    image.header[key] = string(val)
+                # we skip everything that is > 1 dim
                 end
             elseif output_info > 1
                 println("Warning: unknown type of variable $(name): $(typeof(var))")
