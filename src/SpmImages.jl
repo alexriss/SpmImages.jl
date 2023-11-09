@@ -5,7 +5,7 @@ using DataStructures:OrderedDict
 using Dates
 using ImageFiltering
 using ImageTransformations
-using NetCDF
+using NCDatasets
 using Printf
 using Statistics
 using TOML

@@ -64,26 +64,26 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
     files_fwd = Dict{String, String}()
     files_bwd = Dict{String, String}()
    
-    NetCDF.open(fnames[1]) do nc
+    NCDataset(fnames[1]) do ds
         # read header data
 
         # global attributes
-        for (k,v) in nc.gatts
+        for (k,v) in ds.attrib
             image.header[k] = v
         end
 
-        for name in keys(nc.vars)
-            var = nc.vars[name]
-            if haskey(var.atts, "short_name")
-                key = var.atts["short_name"]
-            elseif haskey(var.atts, "long_name")
-                key = var.atts["long_name"]
-            elseif haskey(var.atts, "label")
-                key = var.atts["label"] * " (" * name * ")"
+        for name in keys(ds)
+            var = ds[name].var
+            if haskey(var.attrib, "short_name")
+                key = var.attrib["short_name"]
+            elseif haskey(var.attrib, "long_name")
+                key = var.attrib["long_name"]
+            elseif haskey(var.attrib, "label")
+                key = var.attrib["label"] * " (" * name * ")"
             else
                 key = name
             end
-            unit = get(var.atts, "var_unit", "")
+            unit = get(var.attrib, "var_unit", "")
             if unit == "1"
                 key *= " []"
             elseif unit != ""
@@ -99,20 +99,21 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
                 key *= " $(i_key)"
             end
 
-            if typeof(var) <: NcVar{NetCDF.ASCIIChar}
-                if var.ndim == 0
+            if eltype(var) <: Complex
+                if ndims(var) == 0
                     val = var[:]
-                elseif var.ndim == 1
-                    val = var[1:var.dim[1].dimlen]
+                elseif ndims(var) == 1
+                    val = var[1:size(var, 1)]
                 else
                     val = var[:]
                 end
                image.header[key] = strip(replace(String(val), '\0' => ' '))
-            elseif typeof(var) <: NcVar{<:Number}
-                if var.ndim == 0
+            elseif eltype(var) <: Complex
+                if ndims(var) == 0
                     val = var[1]
-                elseif var.ndim == 1
-                    l = var.dim[1].dimlen
+                    image.header[key] = string(val)
+                elseif ndims(var) == 1
+                    l = size(var, 1)
                     if l == 1
                         val = var[1]
                         image.header[key] = string(val)
@@ -131,18 +132,18 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
         end
 
         # parse some of the extracted data
-        image.scansize = [nc.vars["rangex"][1], nc.vars["rangey"][1]] .* 0.1  # 0.1 is to convert to nm
+        image.scansize = [ds["rangex"][1], ds["rangey"][1]] .* 0.1  # 0.1 is to convert to nm
         image.scansize_unit = "nm"
         # todo: is this the center or the start of the scan?
-        image.center = [nc.vars["dx"][1], nc.vars["dy"][1]] .* 0.1  # 0.1 is to convert to nm
+        image.center = [ds["dx"][1], ds["dy"][1]] .* 0.1  # 0.1 is to convert to nm
         # todo: is rotation clockwise or counterclockwise?
-        image.angle = nc.vars["alpha"][1]
-        image.pixelsize = [nc.dim["dimx"].dimlen, nc.dim["dimy"].dimlen]
+        image.angle = ds["alpha"][1]
+        image.pixelsize = [ds.dim["dimx"],  ds.dim["dimy"]]
         if haskey(image.header, "spm_scancontrol")
-            image.scan_direction = image.header["spm_scancontrol"] == "TowDown" ? down : up
+            image.scan_direction = image.header["spm_scancontrol"] == "TopDown" ? down : up
         end
-        if "sranger_mk2_hwi_bias" in keys(nc.vars)
-            image.bias = nc.vars["sranger_mk2_hwi_bias"][1]
+        if "sranger_mk2_hwi_bias" in keys(ds)
+            image.bias = ds["sranger_mk2_hwi_bias"][1]
         end
         
         # todo: z-controller/feedback
@@ -151,10 +152,10 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
         # image.z_feedback_setpoint = parse(Float64, split(z_controller_data[9])[1])
         # image.z_feedback_setpoint_unit = split(z_controller_data[9])[2]
 
-        image.z = nc.vars["dz"][1] .* 0.1  # 0.1 is to convert to nm
+        image.z = ds["dz"][1] .* 0.1  # 0.1 is to convert to nm
 
-        image.start_time = unix2datetime(nc.vars["t_start"][1])
-        image.acquisition_time = nc.vars["time"][1]
+        image.start_time = unix2datetime(ds["t_start"][1])
+        image.acquisition_time = ds["time"][1]
 
         image.channel_names, image.channel_units, files_fwd, files_bwd = get_channel_names_units_netCDF(image, fnames)
     end
@@ -169,18 +170,19 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
             i_data_bwd = 2 * i
             if ch in keys(files_fwd)
                 fname = files_fwd[ch]
-                image.data[:,:,i_data_fwd] = NetCDF.ncread(fname, "FloatField")[:,:,1,1]
+                NCDatasets.load!(NCDataset(fname)["FloatField"].var, image.data[:,:,i_data_fwd], :, :, 1, 1)
             else
-                image.data[:,:,i_data_fwd] = fill(NaN32, x_pixels, y_pixels)
+                image.data[:,:,i_data_fwd] .= fill(NaN32, x_pixels, y_pixels)
             end
             if ch in keys(files_bwd)
                 fname = files_bwd[ch]
                 output_info > 0 &&  println("Reading body of $(image.filename)")
-                image.data[:,:,i_data_bwd] = NetCDF.ncread(fname, "FloatField")[:,:,1,1]
+                NCDatasets.load!(NCDataset(fname)["FloatField"].var, image.data[:,:,i_data_bwd], :, :, 1, 1)
             else
-                image.data[:,:,i_data_bwd] = fill(NaN32, x_pixels, y_pixels)
+                image.data[:,:,i_data_bwd] .= fill(NaN32, x_pixels, y_pixels)
             end
         end
     end
     return image
 end
+
