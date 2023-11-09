@@ -163,8 +163,6 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
 
     # read data
     if !header_only
-        @show files_fwd
-        @show files_bwd
         num_channels = length(image.channel_names) * 2    # the "*2" is there because of forward and backward channels (we assume so)
         x_pixels, y_pixels = image.pixelsize
         image.data = Array{Float32}(undef, x_pixels, y_pixels, num_channels)

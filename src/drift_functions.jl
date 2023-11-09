@@ -72,11 +72,11 @@ function calc_drift_xy(image1::SpmImage, image2::SpmImage, channel="Z")::Vector{
 
     # find maximum
     drift_px = -collect(reverse(Tuple(findmax(corr)[2])))
-    @show drift_px
+    # @show drift_px
     diff_secs = datetime2unix(image2.start_time) - datetime2unix(image1.start_time) +
          (image2.acquisition_time - image1.acquisition_time) / 2
     drift_nm = pixels_to_nm(image_base, drift_px) - image1.center + image2.center
-    @show diff_secs, drift_nm, drift_nm ./ diff_secs
+    # @show diff_secs, drift_nm, drift_nm ./ diff_secs
 
     return drift_nm ./ diff_secs
 end
@@ -113,9 +113,9 @@ function correct_drift!(image::SpmImage, drift::Vector{Float64};
     end
 
     driftxy = @view drift[1:2]
-    @show image.center
+    # @show image.center
     image.center -= driftxy .* diff_secs
-    @show image.center, driftxy .* diff_secs
+    # @show image.center, driftxy .* diff_secs
     if length(drift) > 2
         image.z -= drift[3] .* diff_secs
     end
