@@ -141,7 +141,7 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
         image.angle = nc.vars["alpha"][1]
         image.pixelsize = [nc.dim["dimx"].dimlen, nc.dim["dimy"].dimlen]
         if haskey(image.header, "spm_scancontrol")
-            image.scan_direction = image.header["spm_scancontrol"] == "TowDown" ? down : up
+            image.scan_direction = image.header["spm_scancontrol"] == "TopDown" ? down : up
         end
         if "sranger_mk2_hwi_bias" in keys(nc.vars)
             image.bias = nc.vars["sranger_mk2_hwi_bias"][1]
