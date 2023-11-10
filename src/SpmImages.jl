@@ -31,7 +31,7 @@ const DriftCorrection_display = Dict(
 )
 
 mutable struct SpmImage
-    filename::String
+    filename::Union{String,Vector{String}}
     type::FileType
     header::AbstractDict
     data::Array{Float32}
@@ -57,7 +57,7 @@ mutable struct SpmImage
     drift_correction::DriftCorrection
     drift::Vector{Float64}   # drift in units of [scansize] / [acquisition_time]
 end
-SpmImage(filename::String, type::FileType) = SpmImage(filename, type, OrderedDict(), Float32[], String[], String[],
+SpmImage(filename::Union{String,Vector{String}}, type::FileType) = SpmImage(filename, type, OrderedDict(), Float32[], String[], String[],
     Float64[], "", Float64[], 0., Float64[], up,
     0., false, 0., "", 0.,
     Date(-2), 0.,
@@ -80,8 +80,10 @@ include("drift_functions.jl")
 
 function Base.show(io::IO, i::SpmImage)
     if get(io, :compact, false)
-        print(io, "SpmImage(\"", i.filename, "\")")
+        filename = typeof(i.filename) == String ? i.filename : i.filename[1] * "... (" * string(length(i.filename)) * " files)"
+        print(io, "SpmImage(\"", filename, "\")")
     else
+        filename = typeof(i.filename) == String ? i.filename : i.filename[1] * "... (" * string(length(i.filename)) * " files)"
         b = @sprintf "%0.2g" i.bias
         scansize = join([@sprintf("%0.2g", x) for x in i.scansize], " x ")
         pixelsize = join([string(x) for x in i.pixelsize], " x ")
@@ -92,7 +94,7 @@ function Base.show(io::IO, i::SpmImage)
             pixelsize = "-"
         end
         dc = DriftCorrection_display[i.drift_correction]
-        print(io, "SpmImage(\"", i.filename, "\", ",
+        print(io, "SpmImage(\"", filename, "\", ",
         "bias: ", b, " V, ",
         length(i.channel_names), " channels, ",
         scansize, " nm, ", pixelsize, " pixels, ",

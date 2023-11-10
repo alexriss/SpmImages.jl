@@ -56,7 +56,7 @@ The first file is used to read the header data, the image data is read from all 
 If `header_only` is `true` then only header data is read, image data is ignored.
 """
 function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_only::Bool=false)
-    image = SpmImage(fnames[1], nc)
+    image = length(fnames) == 1 ? SpmImage(fnames[1], nc) : SpmImage(fnames, nc)
 
     if output_info > 0
         println("Reading header of $(image.filename)")

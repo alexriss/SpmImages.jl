@@ -3,6 +3,7 @@ using Test
 
 @testset "File loading sxm" begin
     ima = load_image("Image_445.sxm")
+    @test ima.filename == "Image_445.sxm"
     @test ima.channel_names == ["Z", "LI X", "LI Y", "Bias", "Current", "Phase", "Amplitude", "Frequency Shift", "Excitation"]
     @test ima.channel_units == ["m", "V", "V", "V", "A", "deg", "m", "Hz", "V"]
     @test ima.scansize == [2.0, 4.0]
@@ -36,6 +37,7 @@ end
 
 @testset "File loading nc" begin
     ima = load_image("nc/chigwell009-M-Xp-Topo.nc")
+    @test ima.filename == "nc/chigwell009-M-Xp-Topo.nc"
     @test ima.channel_names == ["Topo"]
     @test ima.channel_units == ["V"]
     @test ima.scansize == [10000.0, 10000.0]
@@ -46,8 +48,12 @@ end
 
     @test ima.z ≈ 0.022131370724876562
 
-    ima = load_image(readdir("nc", join=true)[1:12])
+    fnames = readdir("nc", join=true)[1:12]
+    ima = load_image(fnames)
 
+    @test length(ima.filename) == length(fnames)
+    @test ima.filename[1] == fnames[1]
+    @test ima.filename[6] == fnames[6]
     @test ima.channel_names == ["Topo", "ADC1", "ADC2", "ADC4", "ADC6", "ADC7"]
     @test ima.channel_units == ["V", "V", "V", "V", "V", "V"]
     @test ima.scansize == [10000.0, 10000.0]
