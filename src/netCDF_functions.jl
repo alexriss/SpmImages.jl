@@ -6,11 +6,11 @@ const GXSM_BACKWARD_MAXLENGTH_HEADER = 20
 
 
 """
-    get_channel_names_units_netCDF(image::SpmImage)
+    get_channel_names_units_netCDF(fnames::Vector{String})
 
 Gets a list of all channel names and units in `image`.
 """
-function get_channel_names_units_netCDF(image::SpmImage, fnames::Vector{String})
+function get_channel_names_units_netCDF(fnames::Vector{String})
     names = Vector{String}(undef, 0)
     units = Vector{String}(undef, 0)
     files_fwd = Dict{String, String}()
@@ -32,7 +32,7 @@ function get_channel_names_units_netCDF(image::SpmImage, fnames::Vector{String})
                 push!(units, "V")  # todo: how can I know the unit?
             end
 
-            # create list of fiels for fwd and bwd directions
+            # create list of files for fwd and bwd directions
             if entries[end-1] == GXSM_BACKWARD_SCAN_DIR
                 files_bwd[entries[end]] = fname
             elseif entries[end-1] == GXSM_FORWARD_SCAN_DIR
@@ -158,7 +158,7 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
         image.start_time = unix2datetime(nc.vars["t_start"][1])
         image.acquisition_time = nc.vars["time"][1]
 
-        image.channel_names, image.channel_units, files_fwd, files_bwd = get_channel_names_units_netCDF(image, fnames)
+        image.channel_names, image.channel_units, files_fwd, files_bwd = get_channel_names_units_netCDF(fnames)
     end
 
     # read data
