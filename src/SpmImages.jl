@@ -7,7 +7,9 @@ using ImageFiltering
 using ImageTransformations
 using NetCDF
 using Printf
+using StaticArrays
 using Statistics
+using StructIO
 using TOML
 
 export SpmImage, load_image, get_channel, plot_channel, plot_data, correct_background, line_profile
@@ -19,7 +21,7 @@ export no_correction, subtract_minimum, plane_linear_fit, line_average, vline_av
 const VERSION = VersionNumber(TOML.parsefile(joinpath(@__DIR__, "../Project.toml"))["version"]) 
 
 
-@enum FileType sxm nc
+@enum FileType sxm nc ibw
 @enum ScanDirection up down
 @enum Direction bwd fwd
 @enum Background no_correction subtract_minimum plane_linear_fit line_average vline_average line_linear_fit vline_linear_fit line_linear_fit_legacy vline_linear_fit_legacy
@@ -74,16 +76,19 @@ SpmImageChannel() = SpmImageChannel("", "", fwd, [])
 
 include("nanonis_functions.jl")
 include("netCDF_functions.jl")
+include("ibw_functions.jl")
 include("plot_functions.jl")
 include("drift_functions.jl")
 
 
 function Base.show(io::IO, i::SpmImage)
     if get(io, :compact, false)
-        filename = typeof(i.filename) == String ? i.filename : i.filename[1] * "... (" * string(length(i.filename)) * " files)"
-        print(io, "SpmImage(\"", filename, "\")")
+        fname = basename.(i.filename)
+        fname_str = typeof(fname) == String ? fname : fname * "... (" * string(length(i.filename)) * " files)"
+        print(io, "SpmImage(\"", fname_str, "\")")
     else
-        filename = typeof(i.filename) == String ? i.filename : i.filename[1] * "... (" * string(length(i.filename)) * " files)"
+        fname = basename.(i.filename)
+        fname_str = typeof(fname) == String ? fname : fname[1] * "... (" * string(length(i.filename)) * " files)"
         b = @sprintf "%0.2g" i.bias
         scansize = join([@sprintf("%0.2g", x) for x in i.scansize], " x ")
         pixelsize = join([string(x) for x in i.pixelsize], " x ")
@@ -94,7 +99,7 @@ function Base.show(io::IO, i::SpmImage)
             pixelsize = "-"
         end
         dc = DriftCorrection_display[i.drift_correction]
-        print(io, "SpmImage(\"", filename, "\", ",
+        print(io, "SpmImage(\"", fname_str, "\", ",
         "bias: ", b, " V, ",
         length(i.channel_names), " channels, ",
         scansize, " nm, ", pixelsize, " pixels, ",
@@ -126,6 +131,8 @@ function load_image(fname::Union{String,Vector{String}}; output_info::Int=0, hea
         image = load_image_nanonis(fname[1], output_info, header_only)
     elseif ext == "nc"
         image = load_image_netCDF(fname, output_info, header_only)
+    elseif ext == "ibw"
+        image = load_image_ibw(fname[1], output_info, header_only)
     else
         throw(ErrorException("Error: Unknown file type: $ext"))
     end
