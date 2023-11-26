@@ -1,7 +1,7 @@
 const GXSM_FILENAME_ATTRIB_SEPARATOR = "-"
 const GXSM_FORWARD_SCAN_DIR = "Xp"
 const GXSM_BACKWARD_SCAN_DIR = "Xm"
-const GXSM_BACKWARD_MAXLENGTH_HEADER = 20
+const GXSM_MAXLENGTH_HEADER = 20
 
 
 
@@ -118,8 +118,8 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
                     if l == 1
                         val = var[1]
                         image.header[key] = string(val)
-                    elseif l > GXSM_BACKWARD_MAXLENGTH_HEADER
-                        val = var[1:GXSM_BACKWARD_MAXLENGTH_HEADER]
+                    elseif l > GXSM_MAXLENGTH_HEADER
+                        val = var[1:GXSM_MAXLENGTH_HEADER]
                         image.header[key] = string(val) * " ..."
                     else
                         val = var[1:l]
