@@ -9,10 +9,11 @@
 #   https://www.wavemetrics.com/forum/general/igor-binary-files-image-processing-asylum-research-data
 
 
-const MAXDIMS = 4
-const MAX_WAVE_NAME2 = 18  # Maximum length of wave name in version 1 and 2 files. Does not include the trailing null.
-const MAX_WAVE_NAME5 = 31  # Maximum length of wave name in version 5 files. Does not include the trailing null.
-const MAX_UNIT_CHARS = 3
+const IBW_MAXDIMS = 4
+const IBW_MAX_WAVE_NAME2 = 18  # Maximum length of wave name in version 1 and 2 files. Does not include the trailing null.
+const IBW_MAX_WAVE_NAME5 = 31  # Maximum length of wave name in version 5 files. Does not include the trailing null.
+const IBW_MAX_UNIT_CHARS = 3
+const IBW_MAXLENGTH_HEADER = 128
 
 const TYPE_TABLE = Dict(
     0 => nothing,     # Text wave, not handled in ReadWave.c
@@ -71,8 +72,8 @@ end align_packed
 	formulaSize::Int32             # The size of the dependency formula, if any.
 	noteSize::Int32                # The size of the note text.
 	dataEUnitsSize::Int32          # The size of optional extended data units.
-	dimEUnitsSize::SVector{MAXDIMS,Int32}  # The size of optional extended dimension units.
-	dimLabelsSize::SVector{MAXDIMS,Int32}  # The size of optional dimension labels.
+	dimEUnitsSize::SVector{IBW_MAXDIMS,Int32}  # The size of optional extended dimension units.
+	dimLabelsSize::SVector{IBW_MAXDIMS,Int32}  # The size of optional dimension labels.
 	sIndicesSize::Int32            # The size of string indicies if this is a text wave.
 	optionsSize1::Int32            # Reserved. Write zero. Ignore on read.
 	optionsSize2::Int32            # Reserved. Write zero. Ignore on read.
@@ -82,13 +83,13 @@ end align_packed
 	type::Int16							# See types (e.g. NT_FP64) above. Zero for text waves.
 	WaveHeader2::Int32			# Used in memory only. Write zero. Ignore on read.
 
-	bname::SVector{MAX_WAVE_NAME2+2,UInt8} 	# Name of wave plus trailing null.
+	bname::SVector{IBW_IBW_MAX_WAVE_NAME2+2,UInt8} 	# Name of wave plus trailing null.
 	whVersion::Int16					# Write 0. Ignore on read.
 	srcFldr::Int16						# Used in memory only. Write zero. Ignore on read.
 	fileName::Int32					# Used in memory only. Write zero. Ignore on read.
 
-	dataUnits::SVector{MAX_UNIT_CHARS+1,UInt8}	# Natural data units go here - null if none.
-	xUnits::SVector{MAX_UNIT_CHARS+1,UInt8}		# Natural x-axis units go here - null if none.
+	dataUnits::SVector{IBW_MAX_UNIT_CHARS+1,UInt8}	# Natural data units go here - null if none.
+	xUnits::SVector{IBW_MAX_UNIT_CHARS+1,UInt8}		# Natural x-axis units go here - null if none.
 
 	npnts::Int32							# Number of data points in wave.
 
@@ -127,18 +128,18 @@ end align_packed
 
 	whpad1::SVector{6,UInt8}						# Reserved. Write zero. Ignore on read.
 	whVersion::Int16					# Write 1. Ignore on read.
-	bname::SVector{MAX_WAVE_NAME5+1,UInt8}		# Name of wave plus trailing null.
+	bname::SVector{IBW_MAX_WAVE_NAME5+1,UInt8}		# Name of wave plus trailing null.
 	whpad2::Int32						# Reserved. Write zero. Ignore on read.
 	DataFolder::Int32		# Used in memory only. Write zero. Ignore on read.
 
 	# Dimensioning info. [0] == rows, [1] == cols etc
-	nDim::SVector{MAXDIMS,Int32}					# Number of of items in a dimension -- 0 means no data.
-	sfA::SVector{MAXDIMS,Float64}				# Index value for element e of dimension d = sfA[d]*e + sfB[d].
-	sfB::SVector{MAXDIMS,Float64}
+	nDim::SVector{IBW_MAXDIMS,Int32}					# Number of of items in a dimension -- 0 means no data.
+	sfA::SVector{IBW_MAXDIMS,Float64}				# Index value for element e of dimension d = sfA[d]*e + sfB[d].
+	sfB::SVector{IBW_MAXDIMS,Float64}
 
 	# SI units
-	dataUnits::SVector{MAX_UNIT_CHARS+1,UInt8}			# Natural data units go here - null if none.
-	dimUnits::SVector{MAXDIMS * (MAX_UNIT_CHARS+1),UInt8}	# Natural dimension units go here - null if none.
+	dataUnits::SVector{IBW_MAX_UNIT_CHARS+1,UInt8}			# Natural data units go here - null if none.
+	dimUnits::SVector{IBW_MAXDIMS * (IBW_MAX_UNIT_CHARS+1),UInt8}	# Natural dimension units go here - null if none.
 
 	fsValid::Int16						# TRUE if full scale values have meaning.
 	whpad3::Int16						# Reserved. Write zero. Ignore on read.
@@ -146,8 +147,8 @@ end align_packed
     botFullScale::Float64
 
 	dataEUnits::Int32					# Used in memory only. Write zero. Ignore on read.
-	dimEUnits::SVector{MAXDIMS,Int32}			# Used in memory only. Write zero. Ignore on read.
-	dimLabels::SVector{MAXDIMS,Int32}			# Used in memory only. Write zero. Ignore on read.
+	dimEUnits::SVector{IBW_MAXDIMS,Int32}			# Used in memory only. Write zero. Ignore on read.
+	dimLabels::SVector{IBW_MAXDIMS,Int32}			# Used in memory only. Write zero. Ignore on read.
 	
 	waveNoteH::Int32					# Used in memory only. Write zero. Ignore on read.
 	whUnused::SVector{16,Int32}					# Reserved. Write zero. Ignore on read.
@@ -261,6 +262,7 @@ function load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=fal
                 else
                     val_str = string(val)
                 end
+                length(val_str) > IBW_MAXLENGTH_HEADER && (val_str = val_str[1:IBW_MAXLENGTH_HEADER] * " ...")
                 image.header[string(f)] = val_str
             end
         end
