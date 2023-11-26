@@ -6,6 +6,7 @@
 #   https://de.mathworks.com/matlabcentral/fileexchange/42679-igor-pro-file-format-ibw-to-matlab-variable
 #   https://blog.tremily.us/posts/igor/
 #   https://github.com/AFM-analysis/igor2/tree/master/igor2
+#   https://www.wavemetrics.com/forum/general/igor-binary-files-image-processing-asylum-research-data
 
 
 const MAXDIMS = 4
@@ -38,7 +39,6 @@ const TYPE_TABLE = Dict(
     0x60=> UInt32,
     0x61=> Complex{UInt32}
 )
-
 
 
 @io struct BinHeader1 
@@ -175,6 +175,12 @@ end align_packed
 BinHeaderAll = Union{BinHeader1, BinHeader2, BinHeader3, BinHeader5}
 WaveHeaderAll = Union{WaveHeader2, WaveHeader5}
 
+header_skip_fields = [
+    :pictSize, :optionsSize1, :optionsSize2,
+    :WaveHeader2, :whVersion, :srcFldr, :fileName, :aModified, :wModified, :swModified, :useBits, :kindBits, :formula, :depID, :wUnused, :waveNoteH,
+    :dLock, :whPad1, :whPad2, :DataFolder, :whpad3, :dataEUnits, :dimEUnits, :dimLabels, :whUnused, :whpad4, :sIndices,
+    :wData
+]
 
 """
     load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=false; extra_checks::Bool=false)
@@ -192,6 +198,9 @@ function load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=fal
         println("Reading header of $(image.filename)")
     end
 
+    creationDate = missing
+    dimLabels = String[]
+    dimUnits = String[]
     open(image.filename) do f
         version = peek(f, UInt16)
 
@@ -238,17 +247,118 @@ function load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=fal
             end
         end
 
+        creationDate = unix2datetime(waveHeader.creationDate + 2082844800)  # Mac HFS+ timestamp (seconds since 1904)
+        modDate = unix2datetime(waveHeader.modDate + 2082844800)  # Mac HFS+ timestamp (seconds since 1904)
 
+        for header in (binHeader, waveHeader)
+            for f in fieldnames(typeof(header))
+                f in header_skip_fields && continue
+                val = getfield(header, f)
+                if typeof(val) <: SArray{<:Tuple,UInt8,1}
+                        val_str = char_to_string(val)
+                elseif typeof(val) <: SArray{<:Tuple,Int32,1}
+                    val_str = join(string.(val), ", ")
+                else
+                    val_str = string(val)
+                end
+                image.header[string(f)] = val_str
+            end
+        end
+
+        # set file pointer to the beginning of the wData field
+        skip(f, -sizeof(waveHeader.wData))
         if !header_only
-            # set file pointer to the beginning of the wData field
-            skip(f, -sizeof(waveHeader.wData))
-
+            output_info > 0 && println("Reading body of $(image.filename)")
             wave_data = load_numeric_wave_data(f, binHeader, waveHeader, switch_endian)
             # image.data = reshape(wave_data, reverse(waveHeader.nDim)...)
-            @show wave_data
+        else
+            skip_numeric_wave_data(f, waveHeader)
+        end
+
+        if version == 2 || version == 3
+            skip(f, 16)
+        elseif version == 5
+            skip(f, binHeader.formulaSize)
+        end
+        noteArr = Array{UInt8}(undef, binHeader.noteSize)
+        read!(f, noteArr)
+        notes = split(String(noteArr), x -> x in ('\r', '\n'))
+        for note in notes
+            if occursin(":", note)
+                key, val = split(note, ":")
+                key = get_unique_key(image.header, strip(key))
+                image.header[key] = strip(val)
+            end
+        end
+        if version == 5
+            dataUnits = ""
+            if binHeader.dataEUnitsSize > 0
+                dataUnitsArr = Array{UInt8}(undef, binHeader.dataEUnitsSize)
+                read!(f, dataUnitsArr)
+                dataUnits = char_to_string(dataUnitsArr)
+            end
+            image.header["dimEUnitsSize"] = join(dataUnits, ", ")
+            dimEUnits = map(binHeader.dimEUnitsSize) do s
+                s == 0 && return ""
+                arr = Array{UInt8}(undef, s)
+                read!(f, arr)
+                char_to_string(arr)
+            end 
+            image.header["dimEUnits"] = join(dimEUnits, ", ")
+
+            dimLabelsRaw = map(binHeader.dimLabelsSize) do s
+                s == 0 && return ""
+                arr = Array{UInt8}(undef, s)
+                read!(f, arr)
+                String(arr)
+            end
+            dimLabels, dimUnits = get_dim_labels_units(dimLabelsRaw)
+        end
+
+        # number of channels should match the number of dimensions
+        @show waveHeader.nDim, length(dimLabels)
+        # reformat binary data
+        if !header_only
         end
     end
 
+    # parse some of the extracted data
+    if "FastScanSize" in keys(image.header) && "SlowScanSize" in keys(image.header)
+        image.scansize = parse.(Float64, [image.header["FastScanSize"], image.header["SlowScanSize"]]) * 1e9
+    elseif "ScanSize" in keys(image.header)
+        s = parse(Float, image.header["ScanSize"]) * 1e9
+        image.scansize = [s, s]
+    end
+    image.scansize_unit = "nm"
+
+    if "XOffset" in keys(image.header) && "YOffset" in keys(image.header)
+        image.center = parse.(Float64, [image.header["XOffset"], image.header["YOffset"]]) * 1e9
+    end
+    if "ScanAngle" in keys(image.header)
+        image.angle = parse(Float64, image.header["ScanAngle"])
+    end
+    if "ScanPoints" in keys(image.header) && "ScanLines" in keys(image.header)
+        image.pixelsize = parse.(Int, [image.header["ScanPoints"], image.header["ScanLines"]]) 
+    end
+    if "BottomLine" in keys(image.header) && "TopLine" in keys(image.header)
+        image.scan_direction = parse(Int, image.header["BottomLine"]) < parse(Int, image.header["TopLine"]) ? up : down
+    end
+    if "BiasVoltage" in keys(image.header)
+        image.bias = parse(Float64, image.header["BiasVoltage"])
+    end
+
+    # todo: z_feedback
+
+    if "Seconds" in keys(image.header)
+        image.start_time = unix2datetime(parse(Float64, image.header["Seconds"]) + 2082844800)  # Mac HFS+ timestamp (seconds since 1904)
+    else 
+        image.start_time = modDate
+    end
+
+    # todo: acquisition_time, can maybe be calculated from scan size and scan speed
+
+    image.channel_names = dimLabels
+    image.channel_units = dimUnits
 
     return image
 end
@@ -275,6 +385,7 @@ function checksum(binHeader::BinHeaderAll, waveHeader::WaveHeaderAll, oldcksum::
 end
 
 
+"""loads the numeric wave data from the file `f`."""
 function load_numeric_wave_data(f::IO, binHeader::BinHeaderAll, waveHeader::WaveHeaderAll, switch_endian::Bool)
     T = TYPE_TABLE[waveHeader.type]
     isnothing(T) && error("Wave type $(waveHeader.type) is not supported.")
@@ -296,4 +407,89 @@ function load_numeric_wave_data(f::IO, binHeader::BinHeaderAll, waveHeader::Wave
     read!(f, wave_data)
     switch_endian && (wave_data = bswap.(wave_data))
     return wave_data
+end
+
+
+"""skips the numeric wave data in the file `f`."""
+function skip_numeric_wave_data(f::IO, waveHeader::WaveHeaderAll)
+    T = TYPE_TABLE[waveHeader.type]
+    isnothing(T) && error("Wave type $(waveHeader.type) is not supported.")
+
+    npnts = waveHeader.npnts  # total number of elements in all dimensions.
+    skip(f, npnts * sizeof(T))
+    
+    return nothing
+end
+
+
+"""converts Array of UInt8 into a string, stopping at the first null character."""
+function char_to_string(c::Union{SArray{<:Tuple,UInt8,1},Vector{UInt8}})
+    pos = findfirst(isequal(0), c)
+    if isnothing(pos)
+        return String(c)
+    else
+        return String(c[1:pos-1])
+    end
+end
+
+
+"""gets a unique key for a dictionary, by appending a number to the key if it already exists."""
+function get_unique_key(dict::AbstractDict, key::Union{String,SubString})
+    if haskey(dict, key)
+        i_key = 1
+        while haskey(dict, key * " $(i_key)")
+            i_key += 1
+        end
+        key *= " $(i_key)"
+    end
+    return key
+end
+
+
+"""gets the dimension labels and units from the raw strings."""
+function get_dim_labels_units(rawLabels::SArray{<:Tuple,String})
+    dimLabels = Vector{String}(undef, 0)
+    dimUnits = Vector{String}(undef, 0)
+    for s in rawLabels
+        for start in 1:32:length(s)
+            stop = min(start+31, length(s))    # labels are saved in chunks of 32 bytes
+            label = s[start:stop]
+            pos0 = findfirst(isequal('\0'), label)
+            if !isnothing(pos0)
+                pos0 == 1 && continue
+                label = label[1:pos0-1]
+            end
+            endswith(label, "Trace") && (label = label[1:end-5])
+            endswith(label, "Retrace") && (label = label[1:end-7] * " bwd")
+            push!(dimLabels, label)
+        end
+    end
+    return dimLabels, get_dim_units(dimLabels)
+end
+
+
+"""
+Gets the dimension units from the dimension labels.
+This is how it is done in Gwyddion:
+https://github.com/christian-sahlmann/gwyddion/blob/master/modules/file/igorfile.c
+in the function `channel_title_to_units`.
+"""
+function get_dim_units(dimLabels::Vector{String})
+    dimUnits = map(dimLabels) do l
+        startswith(l, "DAC") && (l = l[4:end])
+        startswith(l, "Height") && return "m"
+        startswith(l, "ZSensor") && return "m"
+        startswith(l, "Deflection") && return "m"
+        startswith(l, "Amplitude") && return "m"
+        startswith(l, "Phase") && return "deg"
+        startswith(l, "Current") && return "A"
+        startswith(l, "Frequency") && return "Hz"
+        startswith(l, "Capacitance") && return "F"
+        startswith(l, "Potential") && return "V"
+        startswith(l, "Count") && return ""
+        startswith(l, "QFactor") && return ""
+        # Everything else is in Volts.
+        return "V"
+    end 
+    return dimUnits
 end
