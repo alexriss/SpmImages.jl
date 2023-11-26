@@ -83,7 +83,7 @@ end align_packed
 	type::Int16							# See types (e.g. NT_FP64) above. Zero for text waves.
 	WaveHeader2::Int32			# Used in memory only. Write zero. Ignore on read.
 
-	bname::SVector{IBW_IBW_MAX_WAVE_NAME2+2,UInt8} 	# Name of wave plus trailing null.
+	bname::SVector{IBW_MAX_WAVE_NAME2+2,UInt8} 	# Name of wave plus trailing null.
 	whVersion::Int16					# Write 0. Ignore on read.
 	srcFldr::Int16						# Used in memory only. Write zero. Ignore on read.
 	fileName::Int32					# Used in memory only. Write zero. Ignore on read.
@@ -272,7 +272,12 @@ function load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=fal
         if !header_only
             output_info > 0 && println("Reading body of $(image.filename)")
             wave_data = load_numeric_wave_data(f, binHeader, waveHeader, switch_endian)
-            # image.data = reshape(wave_data, reverse(waveHeader.nDim)...)
+            if :nDim ∉ fieldnames(typeof(waveHeader))
+                error("No image dimensions specified. This might not be an image file.")
+            end
+            nDim = [n for n in waveHeader.nDim if n > 0]
+            length(wave_data) != prod(nDim) && error("Unexpected number of data points: $(length(wave_data)) (read from file) != $(join(nDim, 'x')) (dimensions specified).")
+            image.data = reshape(wave_data, nDim...)
         else
             skip_numeric_wave_data(f, waveHeader)
         end
@@ -318,10 +323,16 @@ function load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=fal
         end
 
         # number of channels should match the number of dimensions
-        @show waveHeader.nDim, length(dimLabels)
-        # reformat binary data
-        if !header_only
+        nDim = [n for n in waveHeader.nDim if n > 0]
+        length(nDim) != 3 && error("Unexpected number of dimensions: $(length(nDim)) (read from file) != 3 (expected).")
+        nDim[3] < 1 && error("Channels specified in file dimension should be greater than 0 (found $(nDim[3])).")
+        i = 1
+        while length(dimLabels) < nDim[3]
+            push!(dimLabels, "Channel $i")
+            push!(dimUnits, "V")
         end
+
+        # todo: backward and forward channels should exist for each channel
     end
 
     # parse some of the extracted data
