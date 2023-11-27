@@ -58,9 +58,7 @@ If `header_only` is `true` then only header data is read, image data is ignored.
 function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_only::Bool=false)
     image = length(fnames) == 1 ? SpmImage(fnames[1], nc) : SpmImage(fnames, nc)
 
-    if output_info > 0
-        println("Reading header of $(image.filename)")
-    end
+    output_info > 0 && println("Reading header of $(image.filename)")
 
     files_fwd = Dict{String, String}()
     files_bwd = Dict{String, String}()
@@ -163,6 +161,8 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
 
     # read data
     if !header_only
+        output_info > 0 && println("Reading body of $(image.filename)")
+
         num_channels = length(image.channel_names) * 2    # the "*2" is there because of forward and backward channels (we assume so)
         x_pixels, y_pixels = image.pixelsize
         image.data = Array{Float32}(undef, x_pixels, y_pixels, num_channels)

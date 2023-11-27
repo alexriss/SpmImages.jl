@@ -36,9 +36,7 @@ If `header_only` is `true` then only header data is read, image data is ignored.
 function load_image_nanonis(fname::String, output_info::Int=1, header_only::Bool=false)
     image = SpmImage(fname, sxm)
 
-    if output_info > 0
-        println("Reading header of $(image.filename)")
-    end
+    output_info > 0 && println("Reading header of $(image.filename)")
     
     header_ended = false
     caption = r"^:.*:"
@@ -99,10 +97,8 @@ function load_image_nanonis(fname::String, output_info::Int=1, header_only::Bool
 
         # read body
         if !header_only
-            if output_info > 0
-                println("Reading body of $(image.filename)")
-            end
-            
+            output_info > 0 && println("Reading body of $(image.filename)")
+
             num_channels = length(image.channel_names) * 2    # the "*2" is there because of forward and backward channels
             x_pixels, y_pixels = image.pixelsize
             data = Array{Float32}(undef, x_pixels, y_pixels, num_channels)
