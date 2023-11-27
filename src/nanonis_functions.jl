@@ -102,41 +102,12 @@ function load_image_nanonis(fname::String, output_info::Int=1, header_only::Bool
             num_channels = length(image.channel_names) * 2    # the "*2" is there because of forward and backward channels
             x_pixels, y_pixels = image.pixelsize
             data = Array{Float32}(undef, x_pixels, y_pixels, num_channels)
+            image.channel_indices_fwd = collect(1:2:num_channels)
+            image.channel_indices_bwd = collect(2:2:num_channels)
             skip(f, 4)
             read!(f, data)
             image.data = ntoh.(data)  # big-endian to host endian
         end
     end
     return image
-end
-
-
-"""
-    get_channel_nanonis(image::SpmImage, i_channel::Int, direction::Direction;
-        origin::String="lower")
-
-Gets the channel object for `i_channel` in `image`.
-`origin` specifies the origin of the image, either "upper" or "lower".
-"""
-function get_channel_nanonis(image::SpmImage, i_channel::Int, direction::Direction;
-    origin::String="lower")
-
-    if direction == bwd
-        @views data = transpose(reverse(image.data[:, :, i_channel * 2], dims=1))  # *2 for forward and backward
-    else
-        @views data = transpose(image.data[:, :, i_channel * 2 - 1])  # -1 because forward scan 
-    end
-
-    # drift correction
-    if image.drift_correction === drift_full
-        data = drift_corr_data(image, data)
-    end
-    
-    if origin == "upper" && image.scan_direction == up
-        data = reverse(data, dims=1)
-    elseif origin == "lower" && image.scan_direction == down
-        data = reverse(data, dims=1)
-    end
-        
-    return SpmImageChannel(image.channel_names[i_channel], image.channel_units[i_channel], direction, data)
 end

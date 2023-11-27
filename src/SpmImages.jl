@@ -37,8 +37,11 @@ mutable struct SpmImage
     type::FileType
     header::AbstractDict
     data::Array{Float32}
+
     channel_names::Vector{String}
     channel_units::Vector{String}
+    channel_indices_fwd::Vector{Int}  # indices of fwd channels in `data`. 0-index means that this direction is missing
+    channel_indices_bwd::Vector{Int}  # indices of fwd channels in `data`. 0-index means that this direction is missing
     
     scansize::Vector{Float64}
     scansize_unit::String
@@ -59,7 +62,8 @@ mutable struct SpmImage
     drift_correction::DriftCorrection
     drift::Vector{Float64}   # drift in units of [scansize] / [acquisition_time]
 end
-SpmImage(filename::Union{String,Vector{String}}, type::FileType) = SpmImage(filename, type, OrderedDict(), Float32[], String[], String[],
+SpmImage(filename::Union{String,Vector{String}}, type::FileType) = SpmImage(filename, type, OrderedDict(), Float32[],
+    String[], String[], String[], String[],
     Float64[], "", Float64[], 0., Float64[], up,
     0., false, 0., "", 0.,
     Date(-2), 0.,
@@ -189,11 +193,50 @@ Gets the channel object for `channel_name` in `image`.
 function get_channel(image::SpmImage, channel_name::String; origin::String="lower")
     i_channel, direction = get_channel_index(image, channel_name)
 
-    if image.type == sxm
-        return get_channel_nanonis(image, i_channel, direction; origin=origin)
-    elseif image.type == nc
-        return get_channel_netCDF(image, i_channel, direction; origin=origin)
+    # if image.type == sxm
+    #     return get_channel_nanonis(image, i_channel, direction; origin=origin)
+    # elseif image.type == nc
+    #     return get_channel_netCDF(image, i_channel, direction; origin=origin)
+    # elseif image.type == ibw
+    #     return get_channel_ibw(image, i_channel, direction; origin=origin)
+    # end
+
+    empty = false
+    if direction == bwd
+        i = image.channel_indices_bwd[i_channel]
+        if i == 0 
+            data = fill(NaN32, reverse(image.pixelsize)...)
+            empty = true
+        else
+            if image.type == ibw
+                @views data = transpose(image.data[:, :, i])
+            else
+                @views data = transpose(reverse(image.data[:, :, i], dims=1))
+            end
+            
+        end
+    else
+        i = image.channel_indices_fwd[i_channel]
+        if i == 0 
+            data = fill(NaN32, reverse(image.pixelsize)...)
+            empty = true
+        else
+            @views data = transpose(image.data[:, :, i])
+        end
     end
+
+    # drift correction
+    if !empty && image.drift_correction === drift_full
+        data = drift_corr_data(image, data)
+    end
+    
+    if !empty && origin == "upper" && image.scan_direction == up
+        data = reverse(data, dims=1)
+    elseif !empty && origin == "lower" && image.scan_direction == down
+        data = reverse(data, dims=1)
+    end
+        
+    return SpmImageChannel(image.channel_names[i_channel], image.channel_units[i_channel], direction, data)
 end
 
 
