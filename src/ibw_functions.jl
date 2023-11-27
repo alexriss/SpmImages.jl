@@ -202,6 +202,7 @@ function load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=fal
     creationDate = missing
     dimLabels = String[]
     dimUnits = String[]
+    nDim = Int[]
     open(image.filename) do f
         version = peek(f, UInt16)
 
@@ -320,15 +321,11 @@ function load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=fal
                 read!(f, arr)
                 String(arr)
             end
-            dimLabels, dimUnits = get_dim_labels_units(dimLabelsRaw)
+            dimLabels = get_dim_labels(dimLabelsRaw)
         end
 
-        # number of channels should match the number of dimensions
-        i = 1
-        while length(dimLabels) < nDim[3]
-            push!(dimLabels, "Channel $i")
-            push!(dimUnits, "V")
-        end
+        image.channel_names, image.channel_units,
+        image.channel_indices_fwd, image.channel_indices_bwd = get_channel_names_units_ibw(dimLabels, Int(nDim[3]))
     end
 
     # parse some of the extracted data
@@ -364,9 +361,6 @@ function load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=fal
     end
 
     # todo: acquisition_time, can maybe be calculated from scan size and scan speed
-
-    image.channel_names = dimLabels
-    image.channel_units = dimUnits
 
     return image
 end
@@ -455,7 +449,7 @@ end
 
 
 """gets the dimension labels and units from the raw strings."""
-function get_dim_labels_units(rawLabels::String)
+function get_dim_labels(rawLabels::String)
     dimLabels = Vector{String}(undef, 0)
     for start in 1:32:length(rawLabels)
         stop = min(start+31, length(rawLabels))    # labels are saved in chunks of 32 bytes
@@ -469,32 +463,66 @@ function get_dim_labels_units(rawLabels::String)
         endswith(label, "Retrace") && (label = label[1:end-7] * " bwd")
         push!(dimLabels, label)
     end
-    return dimLabels, get_dim_units(dimLabels)
+    return dimLabels
 end
 
 
 """
-Gets the dimension units from the dimension labels.
+Gets the dimension unit from the dimension label.
 This is how it is done in Gwyddion:
 https://github.com/christian-sahlmann/gwyddion/blob/master/modules/file/igorfile.c
 in the function `channel_title_to_units`.
 """
-function get_dim_units(dimLabels::Vector{String})
-    dimUnits = map(dimLabels) do l
-        startswith(l, "DAC") && (l = l[4:end])
-        startswith(l, "Height") && return "m"
-        startswith(l, "ZSensor") && return "m"
-        startswith(l, "Deflection") && return "m"
-        startswith(l, "Amplitude") && return "m"
-        startswith(l, "Phase") && return "deg"
-        startswith(l, "Current") && return "A"
-        startswith(l, "Frequency") && return "Hz"
-        startswith(l, "Capacitance") && return "F"
-        startswith(l, "Potential") && return "V"
-        startswith(l, "Count") && return ""
-        startswith(l, "QFactor") && return ""
-        # Everything else is in Volts.
-        return "V"
-    end 
-    return dimUnits
+function get_dim_unit(l::String)
+    startswith(l, "DAC") && (l = l[4:end])
+    startswith(l, "Height") && return "m"
+    startswith(l, "ZSensor") && return "m"
+    startswith(l, "Deflection") && return "m"
+    startswith(l, "Amplitude") && return "m"
+    startswith(l, "Phase") && return "deg"
+    startswith(l, "Current") && return "A"
+    startswith(l, "Frequency") && return "Hz"
+    startswith(l, "Capacitance") && return "F"
+    startswith(l, "Potential") && return "V"
+    startswith(l, "Count") && return ""
+    startswith(l, "QFactor") && return ""
+    # Everything else is in Volts.
+    return "V"
+end
+
+
+"""gets the unique channel names and channel units from the dimension labels."""
+function get_channel_names_units_ibw(dimLabels::Vector{String}, nchannels::Int)
+    # number of labels should match number of channels
+    i = 1
+    while length(dimLabels) < nchannels
+        push!(dimLabels, "Channel $i")
+        i += 1
+    end
+
+    # get channel indices and clean up dimLabels
+    channel_names = String[]
+    channel_units = String[]
+
+    channel_indices_fwd = Int[]
+    channel_indices_bwd = Int[]
+    for (i,ch) in enumerate(dimLabels)
+        i_channel = findfirst(isequal(ch), channel_names)
+        if isnothing(i_channel)
+            ch_base = endswith(ch, " bwd") ? ch[1:end-4] : ch
+            push!(channel_names, ch_base)
+            push!(channel_units, get_dim_unit(ch_base))
+            push!(channel_indices_fwd, 0)
+            push!(channel_indices_bwd, 0)
+            i_channel = length(channel_names)
+        end
+
+        if endswith(ch, " bwd") 
+            channel_indices_bwd[i_channel] = i
+        else
+            channel_indices_fwd[i_channel] = i
+        end
+    end
+
+    return channel_names, channel_units, channel_indices_fwd, channel_indices_bwd
 end
