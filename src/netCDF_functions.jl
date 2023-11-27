@@ -178,11 +178,13 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
             if ch in keys(files_bwd)
                 fname = files_bwd[ch]
                 output_info > 0 &&  println("Reading body of $(image.filename)")
-                image.data[:,:,i_data_bwd] = NetCDF.ncread(fname, "FloatField")[:,:,1,1]
+                image.data[:,:,i] = NetCDF.ncread(fname, "FloatField")[:,:,1,1]
                 channel_indices_bwd[i_ch] = i
                 i += 1
             end
         end
+        image.channel_indices_fwd = channel_indices_fwd
+        image.channel_indices_bwd = channel_indices_bwd
     end
     return image
 end
