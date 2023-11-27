@@ -267,15 +267,16 @@ function load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=fal
             end
         end
 
+        :nDim ∉ fieldnames(typeof(waveHeader)) && error("No image dimensions specified. This might not be an image file.")
+        nDim = [n for n in waveHeader.nDim if n > 0]
+        length(nDim) != 3 && error("Unexpected number of dimensions: $(length(nDim)) (read from file) != 3 (expected).")
+        nDim[3] < 1 && error("Channels specified in file dimension should be greater than 0 (found $(nDim[3])).")
+
         # set file pointer to the beginning of the wData field
         skip(f, -sizeof(waveHeader.wData))
         if !header_only
             output_info > 0 && println("Reading body of $(image.filename)")
             wave_data = load_numeric_wave_data(f, binHeader, waveHeader, switch_endian)
-            if :nDim ∉ fieldnames(typeof(waveHeader))
-                error("No image dimensions specified. This might not be an image file.")
-            end
-            nDim = [n for n in waveHeader.nDim if n > 0]
             length(wave_data) != prod(nDim) && error("Unexpected number of data points: $(length(wave_data)) (read from file) != $(join(nDim, 'x')) (dimensions specified).")
             image.data = reshape(wave_data, nDim...)
         else
@@ -313,7 +314,7 @@ function load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=fal
             end 
             image.header["dimEUnits"] = join(dimEUnits, ", ")
 
-            dimLabelsRaw = map(binHeader.dimLabelsSize) do s
+            dimLabelsRaw = map(binHeader.dimLabelsSize[3]) do s  # only read the labels for the third dimension (i.e. the channels)
                 s == 0 && return ""
                 arr = Array{UInt8}(undef, s)
                 read!(f, arr)
@@ -323,16 +324,11 @@ function load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=fal
         end
 
         # number of channels should match the number of dimensions
-        nDim = [n for n in waveHeader.nDim if n > 0]
-        length(nDim) != 3 && error("Unexpected number of dimensions: $(length(nDim)) (read from file) != 3 (expected).")
-        nDim[3] < 1 && error("Channels specified in file dimension should be greater than 0 (found $(nDim[3])).")
         i = 1
         while length(dimLabels) < nDim[3]
             push!(dimLabels, "Channel $i")
             push!(dimUnits, "V")
         end
-
-        # todo: backward and forward channels should exist for each channel
     end
 
     # parse some of the extracted data
@@ -347,12 +343,11 @@ function load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=fal
     if "XOffset" in keys(image.header) && "YOffset" in keys(image.header)
         image.center = parse.(Float64, [image.header["XOffset"], image.header["YOffset"]]) * 1e9
     end
+    # todo: is angle clockwise or counterclockwise?
     if "ScanAngle" in keys(image.header)
         image.angle = parse(Float64, image.header["ScanAngle"])
     end
-    if "ScanPoints" in keys(image.header) && "ScanLines" in keys(image.header)
-        image.pixelsize = parse.(Int, [image.header["ScanPoints"], image.header["ScanLines"]]) 
-    end
+    image.pixelsize = [nDim[1], nDim[2]]
     if "BottomLine" in keys(image.header) && "TopLine" in keys(image.header)
         image.scan_direction = parse(Int, image.header["BottomLine"]) < parse(Int, image.header["TopLine"]) ? up : down
     end
@@ -460,22 +455,19 @@ end
 
 
 """gets the dimension labels and units from the raw strings."""
-function get_dim_labels_units(rawLabels::SArray{<:Tuple,String})
+function get_dim_labels_units(rawLabels::String)
     dimLabels = Vector{String}(undef, 0)
-    dimUnits = Vector{String}(undef, 0)
-    for s in rawLabels
-        for start in 1:32:length(s)
-            stop = min(start+31, length(s))    # labels are saved in chunks of 32 bytes
-            label = s[start:stop]
-            pos0 = findfirst(isequal('\0'), label)
-            if !isnothing(pos0)
-                pos0 == 1 && continue
-                label = label[1:pos0-1]
-            end
-            endswith(label, "Trace") && (label = label[1:end-5])
-            endswith(label, "Retrace") && (label = label[1:end-7] * " bwd")
-            push!(dimLabels, label)
+    for start in 1:32:length(rawLabels)
+        stop = min(start+31, length(rawLabels))    # labels are saved in chunks of 32 bytes
+        label = rawLabels[start:stop]
+        pos0 = findfirst(isequal('\0'), label)
+        if !isnothing(pos0)
+            pos0 == 1 && continue
+            label = label[1:pos0-1]
         end
+        endswith(label, "Trace") && (label = label[1:end-5])
+        endswith(label, "Retrace") && (label = label[1:end-7] * " bwd")
+        push!(dimLabels, label)
     end
     return dimLabels, get_dim_units(dimLabels)
 end
