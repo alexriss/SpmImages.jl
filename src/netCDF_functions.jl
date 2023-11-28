@@ -151,7 +151,7 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
         # image.z_feedback_setpoint = parse(Float64, split(z_controller_data[9])[1])
         # image.z_feedback_setpoint_unit = split(z_controller_data[9])[2]
 
-        image.z = nc.vars["dz"][1] .* 0.1  # 0.1 is to convert to nm
+        image.z = nc.vars["dz"][1] .* 1e-10  # convert to m
 
         image.start_time = unix2datetime(nc.vars["t_start"][1])
         image.acquisition_time = nc.vars["time"][1]
