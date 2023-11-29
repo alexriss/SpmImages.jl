@@ -65,7 +65,7 @@ end
 SpmImage(filename::Union{String,Vector{String}}, type::FileType) = SpmImage(filename, type, OrderedDict(), Float32[],
     String[], String[], String[], String[],
     Float64[], "", Float64[], 0., Float64[], up,
-    0., true, 0., "", 0.,
+    0., true, NaN, "", 0.,
     Date(-2), 0.,
     drift_none, Float64[])
 
