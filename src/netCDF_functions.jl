@@ -154,7 +154,9 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
         # Aux3 Setpt. [nA] - sranger_mk2_hwi_mix3_aux3_set_point
         if haskey(image.header, "Current Setpt. [nA]")
             image.z_feedback_setpoint = parse(Float64, image.header["Current Setpt. [nA]"]) .* 1e-9  # convert to A
-            image.z_feedback_setpoint_unit = "A"
+            # todo: check if feedback is active
+            # image.z_feedback_setpoint_unit = "A"
+            image.z_feedback_setpoint_unit = ""  # this means that we don't know if it is active
         end
 
         # todo image.z
