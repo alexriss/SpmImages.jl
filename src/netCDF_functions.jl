@@ -146,12 +146,18 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
         end
         
         # todo: z-controller/feedback
-        # z_controller_data = split(image.header["Z-controller"], "\t")
         # image.z_feedback = z_controller_data[8] == "1" ? true : false
-        # image.z_feedback_setpoint = parse(Float64, split(z_controller_data[9])[1])
-        # image.z_feedback_setpoint_unit = split(z_controller_data[9])[2]
+        # header -  ncvars
+        # Current Setpt. [nA] - sranger_mk2_hwi_mix0_current_set_point
+        # Voltage Setpt. [nA] - sranger_mk2_hwi_mix1_voltage_set_point
+        # Aux2 Setpt. [nA] - sranger_mk2_hwi_mix2_aux2_set_point
+        # Aux3 Setpt. [nA] - sranger_mk2_hwi_mix3_aux3_set_point
+        if haskey(image.header, "Current Setpt. [nA]")
+            image.z_feedback_setpoint = parse(Float64, image.header["Current Setpt. [nA]"]) .* 1e-9  # convert to A
+            image.z_feedback_setpoint_unit = "A"
+        end
 
-        image.z = nc.vars["dz"][1] .* 1e-10  # convert to m
+        # todo image.z
 
         image.start_time = unix2datetime(nc.vars["t_start"][1])
         image.acquisition_time = nc.vars["time"][1]
