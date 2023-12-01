@@ -123,7 +123,10 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
                         val = var[1:l]
                         image.header[key] = string(val)
                     end
-                # we skip everything that is > 1 dim
+                # we skip everything that is > 1 dim and large
+                elseif length(var) < 2 * GXSM_MAXLENGTH_HEADER
+                    val = var[:][1:min(GXSM_MAXLENGTH_HEADER, length(var[:]))]
+                    image.header[key] = string(val)
                 end
             elseif output_info > 1
                 println("Warning: unknown type of variable $(name): $(typeof(var))")
@@ -134,7 +137,9 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
         image.scansize = [nc.vars["rangex"][1], nc.vars["rangey"][1]] .* 0.1  # 0.1 is to convert to nm
         image.scansize_unit = "nm"
         # todo: is this the center or the start of the scan?
-        image.center = [nc.vars["dx"][1], nc.vars["dy"][1]] .* 0.1  # 0.1 is to convert to nm
+        image.center = [0., 0.]
+        haskey(nc.vars, "xoffset") && (image.center[1] = nc.vars["xoffset"][1] * 0.1)  # 0.1 is to convert to nm
+        haskey(nc.vars, "yoffset") && (image.center[2] = nc.vars["yoffset"][1] * 0.1)  # 0.1 is to convert to nm
         # todo: is rotation clockwise or counterclockwise?
         image.angle = nc.vars["alpha"][1]
         image.pixelsize = [nc.dim["dimx"].dimlen, nc.dim["dimy"].dimlen]
@@ -147,7 +152,8 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
         
         # todo: z-controller/feedback
         # image.z_feedback = z_controller_data[8] == "1" ? true : false
-        # header -  ncvars
+        #
+        # list of: header -  ncvars
         # Current Setpt. [nA] - sranger_mk2_hwi_mix0_current_set_point
         # Voltage Setpt. [nA] - sranger_mk2_hwi_mix1_voltage_set_point
         # Aux2 Setpt. [nA] - sranger_mk2_hwi_mix2_aux2_set_point
