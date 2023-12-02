@@ -230,10 +230,16 @@ function get_channel(image::SpmImage, channel_name::String; origin::String="lowe
         data = drift_corr_data(image, data)
     end
     
-    if !empty && origin == "upper" && image.scan_direction == up
-        data = reverse(data, dims=1)
-    elseif !empty && origin == "lower" && image.scan_direction == down
-        data = reverse(data, dims=1)
+    if image.type == sxm || image.type == ibw
+        if !empty && origin == "upper" && image.scan_direction == up
+            data = reverse(data, dims=1)
+        elseif !empty && origin == "lower" && image.scan_direction == down
+            data = reverse(data, dims=1)
+        end
+    elseif image.type == nc
+        if origin == "lower" 
+            data = reverse(data, dims=1)
+        end
     end
         
     return SpmImageChannel(image.channel_names[i_channel], image.channel_units[i_channel], direction, data)
