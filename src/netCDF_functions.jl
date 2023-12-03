@@ -138,8 +138,8 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
         image.scansize_unit = "nm"
         # todo: is this the center or the start of the scan?
         image.center = [0., 0.]
-        haskey(nc.vars, "xoffset") && (image.center[1] = nc.vars["xoffset"][1] * 0.1)  # 0.1 is to convert to nm
-        haskey(nc.vars, "yoffset") && (image.center[2] = nc.vars["yoffset"][1] * 0.1)  # 0.1 is to convert to nm
+        "offsetx" in keys(nc.vars) && (image.center[1] = nc.vars["offsetx"][1] * 0.1)  # 0.1 is to convert to nm
+        "offsety" in keys(nc.vars) && (image.center[2] = nc.vars["offsety"][1] * 0.1)  # 0.1 is to convert to nm
         # todo: is rotation clockwise or counterclockwise?
         image.angle = nc.vars["alpha"][1]
         image.pixelsize = [nc.dim["dimx"].dimlen, nc.dim["dimy"].dimlen]
