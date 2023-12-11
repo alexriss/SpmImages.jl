@@ -189,14 +189,28 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
             if ch in keys(files_fwd)
                 fname = files_fwd[ch]
                 output_info > 0 &&  println("Reading body of $(image.filename)")
-                image.data[:,:,i] = NetCDF.ncread(fname, "FloatField")[:,:,1,1]
+                NetCDF.open(fname) do nc
+                    fac = 1.0
+                    if "dz" in keys(nc.vars)
+                        fac = nc.vars["dz"][1]
+                        fac ≈ 0.0 && (fac = 1.0)
+                    end
+                    image.data[:,:,i] = nc.vars["FloatField"][:,:,1,1] .* fac
+                end
                 channel_indices_fwd[i_ch] = i
                 i += 1
             end
             if ch in keys(files_bwd)
                 fname = files_bwd[ch]
                 output_info > 0 &&  println("Reading body of $(image.filename)")
-                image.data[:,:,i] = NetCDF.ncread(fname, "FloatField")[:,:,1,1]
+                NetCDF.open(fname) do nc
+                    fac = 1.0
+                    if "dz" in keys(nc.vars)
+                        fac = nc.vars["dz"][1]
+                        fac ≈ 0.0 && (fac = 1.0)
+                    end
+                    image.data[:,:,i] = nc.vars["FloatField"][:,:,1,1] .* fac
+                end
                 channel_indices_bwd[i_ch] = i
                 i += 1
             end
