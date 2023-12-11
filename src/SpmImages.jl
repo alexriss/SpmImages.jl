@@ -130,12 +130,12 @@ function load_image(fname::Union{String,Vector{String}}; output_info::Int=0, hea
         fname = [fname]
     end
 
-    ext = rsplit(fname[1], "."; limit=2)[2]
-    if ext == "sxm"
+    ext = splitext(fname[1])[2]
+    if ext == ".sxm"
         image = load_image_nanonis(fname[1], output_info, header_only)
-    elseif ext == "nc"
+    elseif ext == ".nc"
         image = load_image_netCDF(fname, output_info, header_only)
-    elseif ext == "ibw"
+    elseif ext == ".ibw"
         image = load_image_ibw(fname[1], output_info, header_only)
     else
         throw(ErrorException("Error: Unknown file type: $ext"))
