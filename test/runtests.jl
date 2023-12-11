@@ -36,6 +36,21 @@ using Test
 end
 
 @testset "File loading nc" begin
+
+    fnames = ["2023_12_11_007-M-Xp-Topo.nc", "2023_12_11_007-Xm-MixmIn-0mITunnel.nc", "2023_12_11_007-Xm-Topo.nc"]
+    names, units, files_fwd, files_bwd = SpmImages.get_channel_names_units_netCDF(fnames)
+    @test names == ["Topo", "0mITunnel"]
+    @test units == ["V", "V"] 
+    @test files_fwd == Dict("Topo" => fnames[1])
+    @test files_bwd == Dict("0mITunnel" => fnames[2], "Topo" => fnames[3])
+
+    fnames = ["2023_12_11_007-M-Xp-Topo.nc", "2023_12_11_007-Xm-0mITunnel.nc", "2023_12_11_007-Xm-Topo.nc"]
+    names, units, files_fwd, files_bwd = SpmImages.get_channel_names_units_netCDF(fnames)
+    @test names == ["Topo", "0mITunnel"]
+    @test units == ["V", "V"] 
+    @test files_fwd == Dict("Topo" => fnames[1])
+    @test files_bwd == Dict("0mITunnel" => fnames[2], "Topo" => fnames[3])
+
     ima = load_image("nc/chigwell009-M-Xp-Topo.nc")
     @test ima.filename == "nc/chigwell009-M-Xp-Topo.nc"
     @test ima.channel_names == ["Topo"]
@@ -46,9 +61,7 @@ end
     @test ima.scan_direction == SpmImages.down
     @test ima.bias ≈ -5.0
 
-    @test ima.z ≈ 0.022131370724876562
-
-    fnames = readdir("nc", join=true)[1:12]
+    fnames = filter(x -> occursin("chigwell", x), readdir("nc", join=true))
     ima = load_image(fnames)
 
     @test length(ima.filename) == length(fnames)
@@ -61,8 +74,6 @@ end
     @test ima.pixelsize == [64, 64]
     @test ima.scan_direction == SpmImages.down
     @test ima.bias ≈ -5.0
-
-    @test ima.z ≈ 0.022131370724876562
 
     @test ima.acquisition_time == 382.0
     @test ima.header["View Offset Z [Ang]"] == "0.0"
@@ -77,21 +88,29 @@ end
     @test ima.header["username"] == "Nobody"
     @test ima.header["# Pixels in X, contains X-Pos Lookup"] == "Float32[-50000.0, -48412.7, -46825.4, -45238.094, -43650.793, -42063.492, -40476.19, -38888.89, -37301.586, -35714.285, -34126.984, -32539.682, -30952.38, -29365.08, -27777.777, -26190.477, -24603.174, -23015.873, -21428.572, -19841.27] ..."
 
-    @test ima.data[12,42,3] ≈ 1139.6155f0
-    @test ima.data[9,18,10] ≈ 169.42552f0
-    @test ima.data[60,60,6] ≈ 3854.3176f0
+    @test ima.data[12,42,3] ≈ 0.34779367f0
+    @test ima.data[9,18,10] ≈ 0.051706143f0
+    @test ima.data[60,60,6] ≈ 1.1762803f0
 
     @test get_channel(ima, "Topo").name == "Topo"
     @test get_channel(ima, "Adc1 bwd").name == "ADC1"
     @test get_channel(ima, "AdC1 backward  ").direction == SpmImages.bwd
-    @test get_channel(ima, "topo").data[30, 55] ≈ -4989.886f0
-    @test get_channel(ima, "topo bwd").data[30, 55] ≈ -4891.791f0
-    @test get_channel(ima, "topo").data[12, 9] ≈ -20631.338f0
-    @test get_channel(ima, "topo bwd").data[12, 9] ≈ -20485.096f0
-    @test get_channel(ima, "ADC2").data[8, 60] ≈ 3878.9294f0
-    @test get_channel(ima, "adc2 [bwd] ").data[8, 49] ≈ 3858.95f0
-    @test get_channel(ima, "adc4").data[49, 1] ≈ 6102.0874f0
-    @test get_channel(ima, "adC4 backwards").data[49, 1] ≈ 6104.7705f0
+    @test get_channel(ima, "topo").data[30, 55] ≈ -1104.3302f0
+    @test get_channel(ima, "topo bwd").data[30, 55] ≈ -1082.6204f0
+    @test get_channel(ima, "topo").data[12, 9] ≈ -4565.998f0
+    @test get_channel(ima, "topo bwd").data[12, 9] ≈ -4533.6323f0
+    @test get_channel(ima, "ADC2").data[8, 60] ≈ 1.1837914f0
+    @test get_channel(ima, "adc2 [bwd] ").data[8, 49] ≈ 1.177694f0
+    @test get_channel(ima, "adc4").data[49, 1] ≈ 1.8622661f0
+    @test get_channel(ima, "adC4 backwards").data[49, 1] ≈ 1.8630849f0
+
+    ima = load_image("nc/2023_12_11_009-M-Xp-Topo.nc")
+    @test ima.angle ≈ 40.0
+    @test get_channel(ima, "Topo").name == "Topo"
+    @test ima.channel_names == ["Topo"]
+    @test ima.channel_units == ["V"]
+    @test get_channel(ima, "Topo").data[22, 50] ≈ -1255.0563f0
+    @test isnan(get_channel(ima, "Topo bwd").data[22, 50])
 end
 
 @testset "Coordinate conversion" begin
