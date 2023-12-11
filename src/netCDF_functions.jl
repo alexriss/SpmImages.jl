@@ -27,18 +27,24 @@ function get_channel_names_units_netCDF(fnames::Vector{String})
             error("File ($fname) has the wrong naming format.")
             continue
         else
-            if entries[end] ∉ names  # there are backwards and forward channels, we only add once
-                push!(names, entries[end])
+            name = entries[end]
+
+            if name ∉ names  # there are backwards and forward channels, we only add once
+                push!(names, name)
                 push!(units, "V")  # todo: how can I know the unit?
             end
 
-            # create list of files for fwd and bwd directions
-            if entries[end-1] == GXSM_BACKWARD_SCAN_DIR
-                files_bwd[entries[end]] = fname
-            elseif entries[end-1] == GXSM_FORWARD_SCAN_DIR
-                files_fwd[entries[end]] = fname
-            elseif !haskey(files_fwd, entries[end])
-                files_fwd[entries[end]] = fname
+            # there can be more elements in the filename,
+            # e.g. 2023_12_11_007-Xm-MixmIn-0mITunnel.nc or 2023_12_11_009-M-Xp-Topo,nc
+            # so we have to check all elements for the direction-identifier
+            rest = @view entries[begin+1:end-1]  # everything except the last first element (base filename) and last element (channel name)
+
+            if GXSM_FORWARD_SCAN_DIR in rest
+                files_fwd[name] = fname
+            elseif GXSM_BACKWARD_SCAN_DIR in rest
+                files_bwd[name] = fname
+            elseif !haskey(files_fwd, name)  # we fall back to forward direction
+                files_fwd[name] = fname
             end
         end
     end
@@ -136,11 +142,9 @@ function load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_on
         # parse some of the extracted data
         image.scansize = [nc.vars["rangex"][1], nc.vars["rangey"][1]] .* 0.1  # 0.1 is to convert to nm
         image.scansize_unit = "nm"
-        # todo: is this the center or the start of the scan?
         image.center = [0., 0.]
         "offsetx" in keys(nc.vars) && (image.center[1] = nc.vars["offsetx"][1] * 0.1)  # 0.1 is to convert to nm
         "offsety" in keys(nc.vars) && (image.center[2] = nc.vars["offsety"][1] * 0.1)  # 0.1 is to convert to nm
-        # todo: is rotation clockwise or counterclockwise?
         image.angle = nc.vars["alpha"][1]
         image.pixelsize = [nc.dim["dimx"].dimlen, nc.dim["dimy"].dimlen]
         if haskey(image.header, "spm_scancontrol: scan direction")
