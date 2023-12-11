@@ -36,7 +36,6 @@ using Test
 end
 
 @testset "File loading nc" begin
-
     fnames = ["2023_12_11_007-M-Xp-Topo.nc", "2023_12_11_007-Xm-MixmIn-0mITunnel.nc", "2023_12_11_007-Xm-Topo.nc"]
     names, units, files_fwd, files_bwd = SpmImages.get_channel_names_units_netCDF(fnames)
     @test names == ["Topo", "0mITunnel"]
