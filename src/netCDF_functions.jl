@@ -55,7 +55,7 @@ end
 """
     load_image_netCDF(fnames::Vector{String}, output_info::Int=1, header_only::Bool=false)
 
-Loads data from `fnames`, specifying a list of file names of a GSXM netCDF files, and returns an `SpmImage` object.
+Loads data from `fnames`, specifying a list of file names of a GXSM netCDF files, and returns an `SpmImage` object.
 The first file is used to read the header data, the image data is read from all given files.
 
 `output_info` specifies the amount of output info to print to stdout when reading the files. 0 for no output, 1 for limited output, 2 for detailed output.

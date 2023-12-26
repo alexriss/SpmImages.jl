@@ -6,7 +6,7 @@
 [![Coverage](https://codecov.io/gh/alexriss/SpmImages.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/alexriss/SpmImages.jl)
 <a href="https://twitter.com/00alexx"><img src="https://img.shields.io/twitter/follow/00alexx?style=social" alt="Twitter"></a>
 
-A julia library to read and display SPM (scanning probe microscopy) images. Currently, [Nanonis](https://www.specs-group.com/nanonis/products/) and [GSXM](https://gxsm.sourceforge.net/) files are supported.
+A julia library to read and display SPM (scanning probe microscopy) images. Currently, [Nanonis](https://www.specs-group.com/nanonis/products/) and [GXSM](https://gxsm.sourceforge.net/) files are supported.
 
 The commands are somewhat similar to the ones in the respective python version [imag*ex*](https://github.com/alexriss/imagex).
 
@@ -42,7 +42,7 @@ d = d ./ maximum(d)
 Gray.(d)
 ```
 
-If you want to load GSXM images, use:
+If you want to load GXSM images, use:
 
 ```julia
 # load one channel

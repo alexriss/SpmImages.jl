@@ -116,7 +116,7 @@ end
     load_image(fname::Union{String,Vector{String}}; output_info::Int=0, header_only::Bool=false)::SpmImage
 
 Loads an SPM image from a file, and returns an `SpmImage` object. The file extension is used to determine the file type.
-Nanonis .sxm files are supported, as well as GSXM netCDF files. For Nanonis .sxm files, only one file can be read - if many files are specified, only the first one is read.
+Nanonis .sxm files are supported, as well as GXSM netCDF files. For Nanonis .sxm files, only one file can be read - if many files are specified, only the first one is read.
 For netCDF files, the `fname` argument can be a vector of strings, specifying all the file names of the netCDF files to load.
 Most of the header information is then read from the first file.
 
