@@ -339,6 +339,12 @@ function load_image_ibw(fname::String, output_info::Int=1, header_only::Bool=fal
 
     if "XOffset" in keys(image.header) && "YOffset" in keys(image.header)
         image.center = parse.(Float64, [image.header["XOffset"], image.header["YOffset"]]) * 1e9
+        # the offset position seems to be the top left corner of the image, so we need to shift it to the center
+        # todo: check if this is correct
+        if length(image.scansize) == 2
+            image.center[1] += image.scansize[1] / 2
+            image.center[2] -= image.scansize[2] / 2
+        end
     end
     # todo: is angle clockwise or counterclockwise?
     if "ScanAngle" in keys(image.header)
