@@ -21,7 +21,7 @@ export no_correction, subtract_minimum, plane_linear_fit, line_average, vline_av
 const VERSION = VersionNumber(TOML.parsefile(joinpath(@__DIR__, "../Project.toml"))["version"]) 
 
 
-@enum FileType sxm nc ibw
+@enum FileType sxm nc ibw bru
 @enum ScanDirection up down
 @enum Direction bwd fwd
 @enum Background no_correction subtract_minimum plane_linear_fit line_average vline_average line_linear_fit vline_linear_fit line_linear_fit_legacy vline_linear_fit_legacy
@@ -81,6 +81,7 @@ SpmImageChannel() = SpmImageChannel("", "", fwd, [])
 include("nanonis_functions.jl")
 include("netCDF_functions.jl")
 include("ibw_functions.jl")
+include("bru_functions.jl")
 include("plot_functions.jl")
 include("drift_functions.jl")
 
@@ -137,6 +138,8 @@ function load_image(fname::Union{String,Vector{String}}; output_info::Int=0, hea
         image = load_image_netCDF(fname, output_info, header_only)
     elseif ext == ".ibw"
         image = load_image_ibw(fname[1], output_info, header_only)
+    elseif ext == ".spm"
+        image = load_image_bru_spm(fname[1], output_info, header_only)
     else
         throw(ErrorException("Error: Unknown file type: $ext"))
     end
@@ -208,7 +211,7 @@ function get_channel(image::SpmImage, channel_name::String; origin::String="lowe
             data = fill(NaN32, reverse(image.pixelsize)...)
             empty = true
         else
-            if image.type == ibw
+            if image.type == ibw || image.type == icon
                 @views data = transpose(image.data[:, :, i])
             else
                 @views data = transpose(reverse(image.data[:, :, i], dims=1))
