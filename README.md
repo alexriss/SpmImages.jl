@@ -8,6 +8,8 @@
 
 A julia library to read and display SPM (scanning probe microscopy) images. Currently, [Nanonis](https://www.specs-group.com/nanonis/products/) and [GXSM](https://gxsm.sourceforge.net/) files are supported.
 
+Preliminary support for [Igor Pro .ibw](https://www.wavemetrics.com/) and [Bruker .spm](https://www.bruker.com/de/products-and-solutions/microscopes/) files is implemented.
+
 The commands are somewhat similar to the ones in the respective python version [imag*ex*](https://github.com/alexriss/imagex).
 
 ## Installation
