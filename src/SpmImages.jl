@@ -211,7 +211,7 @@ function get_channel(image::SpmImage, channel_name::String; origin::String="lowe
             data = fill(NaN32, reverse(image.pixelsize)...)
             empty = true
         else
-            if image.type == ibw || image.type == icon
+            if image.type == ibw || image.type == bru
                 @views data = transpose(image.data[:, :, i])
             else
                 @views data = transpose(reverse(image.data[:, :, i], dims=1))
