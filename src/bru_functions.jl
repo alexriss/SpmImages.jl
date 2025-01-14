@@ -33,7 +33,8 @@ function get_channel_info_spm(image::SpmImage)
         calibration_factor_entry = ""
         unit_data = image.header["Ciao image $i - Z scale"]
         # example entry: V [Sens. Zsens] (0.006713867 V/LSB) 440.0000 V
-        pattern = r"\[(.+)\] \(([\d\.]+) (.+)\/LSB\)\s+([\d.]+) "
+        pattern = r"\[(.+)\] \(([\d\.-]+) (.+)\/LSB\)\s+([\d.-]+) "
+        unit_data = replace(unit_data, "\xba" => "°")  # replace deg symbol encoding
         m = match(pattern, unit_data)
         if isnothing(m)
             println("Warning: Could not parse channel unit. ($unit_data)")
@@ -45,6 +46,7 @@ function get_channel_info_spm(image::SpmImage)
 
         offset_data = image.header["Ciao image $i - Z offset"]
         # example: V [Sens. Zsens] (0.006713867 V/LSB)       0 V
+        offset_data = replace(offset_data, "\xba" => "°")  # replace deg symbol encoding
         m = match(pattern, offset_data)
         if isnothing(m) && info["unit"] != ""
             println("Warning: Could not parse channel offset. ($offset_data)")
@@ -56,10 +58,10 @@ function get_channel_info_spm(image::SpmImage)
             if haskey(image.header, calibration_factor_entry)
                 calib_data = image.header[calibration_factor_entry]
                 # example: Sens. Zsens: V 6.127566 nm/V
-                pattern = r"([\d\.]+) (.+)\/(.+)"
+                pattern = r"([\d\.-]+) (.+)\/(.+)"
                 m = match(pattern, calib_data)
                 if isnothing(m)
-                    pattern = r"([\d\.]+)"  # try without the unit
+                    pattern = r"([\d\.-]+)"  # try without the unit
                     m = match(pattern, calib_data)
                 end
 
@@ -90,15 +92,23 @@ function get_channel_info_spm(image::SpmImage)
         # just do some sanity checks
         scan_direction = image.header["Ciao image $i - Frame direction"] == "Up" ? up : down
         pixelsize = [parse(Int, image.header["Ciao image $i - Samps/line"]), parse(Int, image.header["Ciao image $i - Number of lines"])]
-        scansize = parse.(Float64, split(image.header["Ciao image $i - Scan Size"])[1:2]) * 1e3  # um
+        info["x_pixels"] = pixelsize[1]
+        info["y_pixels"] = pixelsize[2]
+        scansize_parts = split(image.header["Ciao image $i - Scan Size"])
+        scansize = parse.(Float64, scansize_parts[1:2])
+        if length(scansize_parts) == 3 && scansize_parts[3] != "nm"  # sometimes it is nm
+            # we assume otherwise it is um
+            scansize .*= 1000
+        end
         
         if scan_direction != image.scan_direction
             println("Warning: Direction of channel '$(info["name"])' is different from main scan direction. This is unexpected.")
         end
-        if pixelsize[1] != image.pixelsize[1] || pixelsize[2] != image.pixelsize[2]
-            println("Warning: Pixelsize of channel '$(info["name"])' ($pixelsize) is different from main pixelsize ($(image.pixelsize)). This is unexpected.")
-        end
-        if scansize != image.scansize
+        # this can happen for partial images
+        # if pixelsize[1] != image.pixelsize[1] || pixelsize[2] != image.pixelsize[2]
+        #     println("Warning: Pixelsize of channel '$(info["name"])' ($pixelsize) is different from main pixelsize ($(image.pixelsize)). This is unexpected.")
+        # end
+        if !isapprox(scansize, image.scansize)
             println("Warning: Scansize of channel '$(info["name"])' ($scansize) is different from main scansize ($(image.scansize). This is unexpected.")
         end
 
@@ -196,7 +206,7 @@ function load_image_bru_spm(fname::String, output_info::Int=1, header_only::Bool
         if haskey(image.header, "Scan Size") && haskey(image.header, "Slow Axis Size")
             s1 = split(image.header["Scan Size"])
             s2 = split(image.header["Slow Axis Size"])
-            if length(s1) == 2 && length(s2) == 2 && s1[2] == "nm" && s2[2] == "nm"
+            if length(s1) == 2 && length(s2) == 2  && s2[2] == "nm"
                 s1_val = parse(Float64, s1[1])
                 s2_val = parse(Float64, s2[1])
                 image.scansize = [s1_val, s2_val]
@@ -204,6 +214,15 @@ function load_image_bru_spm(fname::String, output_info::Int=1, header_only::Bool
             else
                 println("Warning: Could not parse scansize (parameters: 'Scan Size' and 'Slow Axis Size').")
             end
+        elseif haskey(image.header, "Scan Size")  # we assume a square image
+            s1 = split(image.header["Scan Size"])
+            if length(s1) == 2 && s1[2] == "nm"
+                s1_val = parse(Float64, s1[1])
+                image.scansize = [s1_val, s1_val]
+                image.scansize_unit = "nm"
+            else
+                println("Warning: Could not parse scansize (parameters: 'Scan Size'.")
+            end           
         end
 
         image.center = [0, 0]
@@ -232,8 +251,13 @@ function load_image_bru_spm(fname::String, output_info::Int=1, header_only::Bool
         if haskey(image.header, "Samps/line") && haskey(image.header, "Lines")
             image.pixelsize = [parse(Int, image.header["Samps/line"]), parse(Int, image.header["Lines"])]
         end
-        if haskey(image.header, "Ciao image 1 - Frame direction")
-            image.scan_direction = image.header["Ciao image 1 - Frame direction"] == "Up" ? up : down
+        
+        if haskey(image.header, "Capture direction")
+            image.scan_direction = image.header["Capture direction"] == "Up" ? up : down
+        elseif haskey(image.header, "Ciao image $i - Frame direction")
+            image.scan_direction = image.header["Ciao image $i - Frame direction"] == "Up" ? up : down
+        else
+            println("Warning: Cant read scan direction.")
         end
         image.bias = 0.0  # todo
         image.z_feedback = true  # todo
@@ -281,16 +305,23 @@ function load_image_bru_spm(fname::String, output_info::Int=1, header_only::Bool
                     image.channel_indices_bwd[i_ch] = i_info
                 end
                 skip(f, info["data_offset"])
+
+                x_pixels = info["x_pixels"]  # in case we have a partial image
+                y_pixels = info["y_pixels"]  # in case we have a partial image
                 if info["data_length"] != x_pixels * y_pixels * 4
                     println("Warning: Data length does not match expected length for channel $(info["name"]).")
                     image.data[:,:,i_info] .= NaN32
                     continue
                 end
-                data_int = Array{Int16}(undef, x_pixels, y_pixels)  # this seems to be always Int16, despite the parameter 'bytes_per_pixel'
+                data_int = Array{Int32}(undef, x_pixels, y_pixels)  # this seems to be always Int16, despite the parameter 'bytes_per_pixel'
                 seek(f, info["data_offset"])
                 read!(f, data_int)
                 data_int = ltoh.(data_int)  # little-endian (LSB) to host endian
-                image.data[:,:,i_info] = (data_int .* info["calibration_factor"] .+ info["calibration_offset"]) .* info["calibration_factor2"]
+                image.data[1:x_pixels,1:y_pixels,i_info] = (data_int .* info["calibration_factor"] .+ info["calibration_offset"]) .* info["calibration_factor2"]
+                if x_pixels != image.pixelsize[1] ||  y_pixels != image.pixelsize[1]   # partial image
+                    image.data[x_pixels + 1:image.pixelsize[1], y_pixels + 1:image.pixelsize[2], i_info] .= NaN32
+                end
+    
             end
         end
     end

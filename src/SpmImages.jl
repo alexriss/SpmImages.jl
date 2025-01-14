@@ -243,6 +243,10 @@ function get_channel(image::SpmImage, channel_name::String; origin::String="lowe
         if origin == "lower" 
             data = reverse(data, dims=1)
         end
+    elseif image.type == bru
+        if origin == "upper" 
+            data = reverse(data, dims=1)
+        end
     end
         
     return SpmImageChannel(image.channel_names[i_channel], image.channel_units[i_channel], direction, data)
