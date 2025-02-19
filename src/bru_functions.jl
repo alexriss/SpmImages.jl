@@ -25,6 +25,7 @@ function get_channel_info_spm(image::SpmImage)
             continue
         end
         info["name"] = String(name_data[pos[1]+1:pos[2]-1])
+        info["bytes_per_pixel"] = parse(Int, image.header["Ciao image $i - Bytes/pixel"])
 
         info["unit"] = "V"
         calibration_factor = 1.
@@ -42,6 +43,14 @@ function get_channel_info_spm(image::SpmImage)
             calibration_factor_entry = "@" * m.captures[1]
             calibration_factor = parse(Float64, m.captures[2])
             info["unit"] = String(m.captures[3])
+
+            # check if hard scale and hard value match (the files seem to be inconsistent sometimes)
+            hard_value = parse(Float64, m.captures[4])
+            if abs(calibration_factor * 2^(8*info["bytes_per_pixel"] - hard_value) > hard_value * 0.01)  # we will override only if there is a relatively big deviation
+                println("Warning: Calibration factor does not match hard value for channel $(info["name"]).")
+                # let's use the hard value
+                calibration_factor = hard_value / 2^info["bytes_per_pixel"]
+            end
         end
 
         offset_data = image.header["Ciao image $i - Z offset"]
@@ -116,7 +125,6 @@ function get_channel_info_spm(image::SpmImage)
 
         info["data_offset"] = parse(Int, image.header["Ciao image $i - Data offset"])
         info["data_length"] = parse(Int, image.header["Ciao image $i - Data length"])
-        info["bytes_per_pixel"] = parse(Int, image.header["Ciao image $i - Bytes/pixel"])
 
         push!(channel_info, info)
         i += 1
