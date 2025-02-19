@@ -229,8 +229,20 @@ function load_image_bru_spm(fname::String, output_info::Int=1, header_only::Bool
                 image.scansize = [s1_val, s1_val]
                 image.scansize_unit = "nm"
             else
-                println("Warning: Could not parse scansize (parameters: 'Scan Size'.")
-            end           
+                println("Warning: Could not parse scansize (parameters: 'Scan Size').")
+            end
+        end
+
+        if length(image.scansize) == 2 && haskey(image.header, "Aspect Ratio")
+            if image.header["Aspect Ratio"] != "1:1"
+                aspect_ratio = split(image.header["Aspect Ratio"], ':')
+                if length(aspect_ratio) == 2
+                    aspect = parse(Float64, aspect_ratio[2]) / parse(Float64, aspect_ratio[1])
+                    image.scansize[2] *= aspect
+                else
+                    println("Warning: Could not parse aspect ratio.")
+                end
+            end
         end
 
         image.center = [0, 0]
@@ -317,7 +329,7 @@ function load_image_bru_spm(fname::String, output_info::Int=1, header_only::Bool
                 x_pixels = info["x_pixels"]  # in case we have a partial image
                 y_pixels = info["y_pixels"]  # in case we have a partial image
                 if info["data_length"] != x_pixels * y_pixels * 4
-                    println("Warning: Data length does not match expected length for channel $(info["name"]).")
+                    println("Warning: Data length does not match expected length for channel '$(info["name"])'.")
                     image.data[:,:,i_info] .= NaN32
                     continue
                 end
