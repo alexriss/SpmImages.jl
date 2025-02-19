@@ -49,7 +49,7 @@ function get_channel_info_spm(image::SpmImage)
             if abs(calibration_factor * 2^(8*info["bytes_per_pixel"] - hard_value) > hard_value * 0.01)  # we will override only if there is a relatively big deviation
                 println("Warning: Calibration factor does not match hard value for channel $(info["name"]).")
                 # let's use the hard value
-                calibration_factor = hard_value / 2^info["bytes_per_pixel"]
+                calibration_factor = hard_value / 2^(8*info["bytes_per_pixel"])
             end
         end
 
