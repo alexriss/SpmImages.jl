@@ -109,6 +109,19 @@ function get_channel_info_spm(image::SpmImage)
             # we assume otherwise it is um
             scansize .*= 1000
         end
+
+        if length(scansize) == 2 && haskey(image.header, "Ciao image $i - Aspect Ratio")
+            if image.header["Ciao image $i - Aspect Ratio"] != "1:1"
+                aspect_ratio = split(image.header["Ciao image $i - Aspect Ratio"], ':')
+                if length(aspect_ratio) == 2
+                    aspect = parse(Float64, aspect_ratio[2]) / parse(Float64, aspect_ratio[1])
+                    scansize[2] *= aspect
+                else
+                    aspect = parse(Float64, aspect_ratio[1])
+                    scansize[2] *= aspect
+                end
+            end
+        end
         
         if scan_direction != image.scan_direction
             println("Warning: Direction of channel '$(info["name"])' is different from main scan direction. This is unexpected.")
@@ -240,7 +253,8 @@ function load_image_bru_spm(fname::String, output_info::Int=1, header_only::Bool
                     aspect = parse(Float64, aspect_ratio[2]) / parse(Float64, aspect_ratio[1])
                     image.scansize[2] *= aspect
                 else
-                    println("Warning: Could not parse aspect ratio.")
+                    aspect = parse(Float64, aspect_ratio[1])
+                    image.scansize[2] *= aspect
                 end
             end
         end
