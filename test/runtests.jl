@@ -77,6 +77,7 @@ end
     @test ima.acquisition_time == 382.0
     @test ima.header["View Offset Z [Ang]"] == "0.0"
     @test ima.header["SRanger: Scan Event Xp Bias [Volt]"] == "-5.135874684612657e305"
+    @test ima.header["YRes [0]"] == "1.774023696542198"
     @test ima.header["t_end"] == "1638465030"
 
     @test ima.header["InstrumentName"] == "LT-AFM"
