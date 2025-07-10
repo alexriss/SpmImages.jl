@@ -109,20 +109,10 @@ function get_channel_info_spm(image::SpmImage)
             # we assume otherwise it is um
             scansize .*= 1000
         end
-
-        if length(scansize) == 2 && haskey(image.header, "Ciao image $i - Aspect Ratio")
-            if image.header["Ciao image $i - Aspect Ratio"] != "1:1"
-                aspect_ratio = split(image.header["Ciao image $i - Aspect Ratio"], ':')
-                if length(aspect_ratio) == 2
-                    aspect = parse(Float64, aspect_ratio[2]) / parse(Float64, aspect_ratio[1])
-                    scansize[2] *= aspect
-                else
-                    aspect = parse(Float64, aspect_ratio[1])
-                    scansize[2] *= aspect
-                end
-            end
+        if length(pixelsize) == 2 && length(scansize) == 2 && pixelsize[1]!= pixelsize[2] && pixelsize[2] != 0
+            scansize[2] = scansize[2] * pixelsize[2] / pixelsize[1]  # adjust scansize for aspect ratio
         end
-        
+
         if scan_direction != image.scan_direction
             println("Warning: Direction of channel '$(info["name"])' is different from main scan direction. This is unexpected.")
         end
@@ -246,18 +236,19 @@ function load_image_bru_spm(fname::String, output_info::Int=1, header_only::Bool
             end
         end
 
-        if length(image.scansize) == 2 && haskey(image.header, "Aspect Ratio")
-            if image.header["Aspect Ratio"] != "1:1"
-                aspect_ratio = split(image.header["Aspect Ratio"], ':')
-                if length(aspect_ratio) == 2
-                    aspect = parse(Float64, aspect_ratio[2]) / parse(Float64, aspect_ratio[1])
-                    image.scansize[2] *= aspect
-                else
-                    aspect = parse(Float64, aspect_ratio[1])
-                    image.scansize[2] *= aspect
-                end
-            end
-        end
+        # Aspect ratio seems to only be an approximation (weird), so we use the pixelsize to calculate the aspect ratio (see below)
+        # if length(image.scansize) == 2 && haskey(image.header, "Aspect Ratio")
+        #     if image.header["Aspect Ratio"] != "1:1"
+        #         aspect_ratio = split(image.header["Aspect Ratio"], ':')
+        #         if length(aspect_ratio) == 2
+        #             aspect = parse(Float64, aspect_ratio[2]) / parse(Float64, aspect_ratio[1])
+        #             image.scansize[2] *= aspect
+        #         else
+        #             aspect = parse(Float64, aspect_ratio[1])
+        #             image.scansize[2] *= aspect
+        #         end
+        #     end
+        # end
 
         image.center = [0, 0]
         if haskey(image.header, "X Offset") && haskey(image.header, "Y Offset")
@@ -284,6 +275,10 @@ function load_image_bru_spm(fname::String, output_info::Int=1, header_only::Bool
         end
         if haskey(image.header, "Samps/line") && haskey(image.header, "Lines")
             image.pixelsize = [parse(Int, image.header["Samps/line"]), parse(Int, image.header["Lines"])]
+            # adjust scansize for aspect ratio
+            if length(image.scansize) == 2 && image.pixelsize[1]!= image.pixelsize[2] && image.pixelsize[2] != 0
+                image.scansize[2] = image.scansize[2] * image.pixelsize[2] / image.pixelsize[1]
+            end
         end
         
         if haskey(image.header, "Capture direction")
