@@ -80,6 +80,28 @@ function correct_background(data::Array{<:Number,2}, type::Background, offset::B
                 y .= y .- α - x .* β
             end
         end
+    elseif type == line_diff_mean
+        # line correction using differences between adjacent lines, using the mean of the differences
+        prev = @view data[begin, :]
+        for y in eachrow(@view data[begin+1:end, :])
+            diff = filter(!isnan, y .- prev)
+            if length(diff) > 0
+                y .-= mean(diff)
+            end
+            prev = y
+        end
+    elseif type == line_diff_median
+        # line correction using differences between adjacent lines, using the median of the differences
+        prev = @view data[begin, :]
+        for y in eachrow(@view data[begin+1:end, :])
+            diff = filter(!isnan, y .- prev)
+            if length(diff) > 0
+                y .-= median(diff)
+            end
+            prev = y
+        end
+    elseif type == plane_facets
+        data, _, _ = plane_correction_normals(data)
     end
     if type == subtract_minimum || offset
         filtered = filter(!isnan, data)
@@ -88,5 +110,139 @@ function correct_background(data::Array{<:Number,2}, type::Background, offset::B
             data .-= m
         end
     end
+    return data
+end
+
+
+"""plane correction using the calculated normals for each subsquare (with size `subsize` and distance `substep`), 
+then subtract the plane corresponding to a weighted average of the normals"""
+function plane_correction_normals(data::Array{<:Number,2}; sigma=0, subsize=9, step=7)
+    data_filtered = imfilter(data, Kernel.gaussian(sigma))
+
+    rows, cols = size(data_filtered)
+
+    rrows = 1:step:(rows - subsize + 1)
+    rcols = 1:step:(cols - subsize + 1)
+    normals = fill([0.0, 0.0, 0.0], length(rrows), length(rcols))
+    for (idx_i, i) in enumerate(rrows)
+        for (idx_j, j) in enumerate(rcols)
+            subdata = data_filtered[i:(i + subsize - 1), j:(j + subsize - 1)]
+            subdata .-= mean(subdata)  # remove mean to improve numerical stability
+
+            # skip patches with non-finite values
+            if any(!isfinite, subdata)
+                continue
+            end
+
+            # Fit a plane to the subimage
+            # Make columns: ones, x, y so coeffs[2] is x-coeff, coeffs[3] is y-coeff.
+            A = [ones(subsize^2) vec(repeat((1:subsize)', subsize)) vec(repeat(1:subsize, subsize))]
+            b = vec(subdata)
+            coeffs = A \ b  # Plane: z = coeffs[1] + coeffs[2]*x + coeffs[3]*y
+
+            normal = [-coeffs[2], -coeffs[3], 1]
+            normal /= sqrt(coeffs[2]^2 + coeffs[3]^2 + 1) # normalize
+
+            # force normals to same hemisphere (nz >= 0)
+            if normal[3] < 0
+                normal .= -normal
+            end
+
+            normals[idx_i, idx_j] = normal
+        end
+    end
+
+    if isempty(normals)
+        @warn "plane_correction_normals: no valid subsquares; returning original image"
+        return data, Matrix{Float64}(), Matrix{Float64}()
+    end
+
+    # Average the normals, weighted by their z-component
+    # weights = [exp((-1.0 - n[3]) * 0.51) for n in normals]
+    avg_normal = zeros(3)
+    sum_weights = 0.0
+    weights = zeros(size(normals, 1), size(normals, 2))
+    for i in 2:size(normals, 1)-1, j in 2:size(normals, 2)-1
+        n = normals[i, j]
+        # stddev = std(normals[(i-1):(i+1), (j-1):(j+1)][3])
+        # w = 1 / (stddev + 1) * exp(-abs((n[3] - 1.0)) * 0.5)  # custom weight: prefer normals with nz close to 1 and low stddev
+        w = exp(-abs((n[3] - 1.0)) * 5)  # custom weight: prefer normals with nz close to 1 and low stddev
+        weights[i, j] = w
+        sum_weights += w
+        avg_normal .+= (w .* n)
+    end
+    avg_normal ./= sum_weights
+
+    # subtract the plane defined by the average normal
+    cx = (cols + 1) / 2
+    cy = (rows + 1) / 2
+    d = -avg_normal[1] * cx - avg_normal[2] * cy
+
+    # make X and Y arrays (Float64) that broadcast to the image shape (rows x cols)
+    X = reshape(Float64.(1:cols), 1, cols)   # 1 x cols (x = column index)
+    Y = reshape(Float64.(1:rows), rows, 1)   # rows x 1 (y = row index)
+
+    plane = -(avg_normal[1] .* X .+ avg_normal[2] .* Y .+ d) ./ avg_normal[3]
+
+    return data .- plane, normals, weights
+end
+
+
+"""calculates histogram"""
+function hist(v, nbins; return_indices=false)
+    mn, mx= extrema(v)
+    edges = collect(range(mn, stop=mx, length=nbins+1))
+    counts = zeros(Int, nbins)
+    denom = mx - mn
+    if return_indices
+        indices = fill(Int[], nbins)
+    else
+        indices = nothing
+    end 
+    for val in v
+        t = (val - mn) / denom  # in [0,1]
+        # map t to bin index 1..nbins, ensure mx falls into last bin
+        idx = clamp(floor(Int, t * nbins) + 1, 1, nbins)
+        counts[idx] += 1
+        if return_indices
+            push!(indices[idx], val)
+        end
+    end
+    return counts, edges, indices
+end
+
+
+"""Sets the 0-level to the largest plane in the image"""
+function set_baselevel(data::Array{<:Number,2}, binwidth=0.2)
+    v = vec(data)
+    # drop NaNs/Infs
+    v = v[isfinite.(v)]
+    if isempty(v)
+        @warn "set_baselevel: no finite pixels found; returning original image"
+        return data
+    end
+
+    mn, mx = extrema(v)
+
+    # if nearly constant, subtract that constant
+    if isapprox(mn, mx; atol=eps(Float64))
+        data .-= mn
+        return data
+    end
+
+    # if few pixels, just use the mean
+    if length(v) < 192
+        return data .- mean(v)
+    end
+
+    # build histogram manually
+    nbins = clamp(ceil(Int, (mx - mn) / binwidth), 16, 512)
+    counts, edges, _ = hist(v, nbins)
+
+    bin_centers = (edges[1:end-1] .+ edges[2:end]) ./ 2
+    max_idx = findmax(counts)[2]
+    base_level = bin_centers[max_idx]
+
+    data .-= base_level
     return data
 end

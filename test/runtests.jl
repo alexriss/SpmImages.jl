@@ -1,6 +1,13 @@
 using SpmImages
 using Test
 
+function approx_or_nan(a, b; atol=1e-8, rtol=0)
+    @assert size(a) == size(b)
+    mask_both_nan = isnan.(a) .& isnan.(b)
+    close = isapprox.(a, b; atol=atol, rtol=rtol)
+    return all(mask_both_nan .| close)
+end
+
 @testset "File loading sxm" begin
     ima = load_image("Image_445.sxm")
     @test ima.filename == "Image_445.sxm"
@@ -135,6 +142,19 @@ end
     d = [1.0 2.0 3.0; 4.0 3.0 2.0; 3.0 4.0 5.0]
     @test correct_background(d, line_linear_fit) == [0.0 0.0 0.0; 0.0 0.0 0.0; 0.0 0.0 0.0]
     @test all(correct_background(d, vline_linear_fit, false) - [-0.666667 0.0 0.666667; 1.33333 0.0 -1.33333; -0.666667 0.0 0.666667] .< 1e-5)
+    
+    d = [1.0 2.0 3.0 4.0 NaN; 4.0 3.0 2.0 1.0 NaN; 3.0 4.0 5.0 8.0 NaN; NaN NaN NaN NaN NaN]
+    @test approx_or_nan(correct_background(d, line_diff_mean), [0.5 1.5 2.5 3.5 NaN; 3.5 2.5 1.5 0.5 NaN; 0.0 1.0 2.0 5.0 NaN; NaN NaN NaN NaN NaN])
+    @test approx_or_nan(correct_background(d, line_diff_median), [0.0 1.0 2.0 3.0 NaN; 3.0 2.0 1.0 0.0 NaN; 0.0 1.0 2.0 5.0 NaN; NaN NaN NaN NaN NaN])
+
+    im1 = load_image("01514.sxm")
+    ch1 = get_channel(im1, "Frequency Shift").data
+    ch1 = correct_background(ch1, plane_facets)
+    @test ch1[12, 78] ≈ 5.116007028367672
+    @test ch1[69, 23] ≈ 4.535792731705547
+    ch1 = SpmImages.set_baselevel(ch1)
+    @test ch1[12, 78] ≈ -0.11826514279897005
+    @test ch1[69, 23] ≈ -0.6984794394610958
 end
 
 @testset "Line profiles" begin

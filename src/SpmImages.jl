@@ -16,7 +16,8 @@ export SpmImage, load_image, get_channel, plot_channel, plot_data, correct_backg
 export calc_drift_xy, correct_drift!, correct_drift
 export pixels_to_nm, nm_to_pixels
 export Background
-export no_correction, subtract_minimum, plane_linear_fit, line_average, vline_average, line_linear_fit, vline_linear_fit
+export no_correction, subtract_minimum, plane_linear_fit, line_average, vline_average, line_linear_fit, vline_linear_fit,
+    line_diff_mean, line_diff_median, plane_facets
 
 const VERSION = VersionNumber(TOML.parsefile(joinpath(@__DIR__, "../Project.toml"))["version"]) 
 
@@ -24,7 +25,7 @@ const VERSION = VersionNumber(TOML.parsefile(joinpath(@__DIR__, "../Project.toml
 @enum FileType sxm nc ibw bru
 @enum ScanDirection up down
 @enum Direction bwd fwd
-@enum Background no_correction subtract_minimum plane_linear_fit line_average vline_average line_linear_fit vline_linear_fit line_linear_fit_legacy vline_linear_fit_legacy
+@enum Background no_correction subtract_minimum plane_linear_fit line_average vline_average line_linear_fit vline_linear_fit line_linear_fit_legacy vline_linear_fit_legacy line_diff_mean line_diff_median plane_facets
 @enum DriftCorrection drift_none drift_translation drift_full
 const DriftCorrection_display = Dict(
     drift_none => "none",
