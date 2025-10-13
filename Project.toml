@@ -21,7 +21,7 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [compat]
 CoordinateTransformations = "^0.6"
-DataStructures = "^0.18"
+DataStructures = "0.18 - 0"
 ImageFiltering = "^0.7"
 ImageTransformations = "^0.10"
 NetCDF = "=0.12.2"
