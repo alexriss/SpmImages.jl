@@ -235,8 +235,15 @@ function set_baselevel(data::Array{<:Number,2}, binwidth=0.2)
         return data .- mean(v)
     end
 
-    # build histogram manually
-    nbins = clamp(ceil(Int, (mx - mn) / binwidth), 16, 512)
+    # build histogram manually (we could use the clamp function, but this might lead to InexacrErrors as the values can be larger than typemax(Int64))
+    if mx - mn < binwidth
+        nbins = 16
+    elseif mx - mn > binwidth * 512
+        nbins = 512
+    else
+        nbins = ceil(Int, (mx - mn) / binwidth)
+    end
+
     counts, edges, _ = hist(v, nbins)
 
     bin_centers = (edges[1:end-1] .+ edges[2:end]) ./ 2
