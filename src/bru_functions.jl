@@ -283,8 +283,8 @@ function load_image_bru_spm(fname::String, output_info::Int=1, header_only::Bool
         
         if haskey(image.header, "Capture direction")
             image.scan_direction = image.header["Capture direction"] == "Up" ? up : down
-        elseif haskey(image.header, "Ciao image $i - Frame direction")
-            image.scan_direction = image.header["Ciao image $i - Frame direction"] == "Up" ? up : down
+        elseif haskey(image.header, "Ciao image 1 - Frame direction")
+            image.scan_direction = image.header["Ciao image 1 - Frame direction"] == "Up" ? up : down
         else
             println("Warning: Cant read scan direction.")
         end
